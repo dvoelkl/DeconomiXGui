@@ -137,14 +137,14 @@ def get_card_reference():
                 size="sm",
                 c="dimmed",
             ),
-            dmc.Button(
-                "View Table",
-                color="blue",
-                fullWidth=True,
-                mt="md",
-                radius="md",
-                id="upload-button-reference"
-            ),
+            #dmc.Button(
+            #    "View Table",
+            #    color="blue",
+            #    fullWidth=True,
+            #    mt="md",
+            #    radius="md",
+            #    id="upload-button-reference"
+            #),
             dmc.Modal(
                 title="Reference Matrix",
                 id="upload-modal-reference",
@@ -260,14 +260,14 @@ def get_card_app(app_desc):
                                 size="sm",
                                 c="dimmed",
                             ),
-                            dmc.Button(
-                                "Display Details",
-                                color="blue",
-                                fullWidth=True,
-                                mt="md",
-                                radius="md",
-                                id="upload-button-application-information"
-                            ),
+                            #dmc.Button(
+                            #    "Display Details",
+                            #    color="blue",
+                            #    fullWidth=True,
+                            #    mt="md",
+                            #    radius="md",
+                            #    id="upload-button-application-information"
+                            #),
                         ],
                         withBorder=True,
                         shadow="sm",
@@ -294,14 +294,14 @@ def get_card_gamma():
                                 size="sm",
                                 c="dimmed",
                             ),
-                            dmc.Button(
-                                "Display Details",
-                                color="blue",
-                                fullWidth=True,
-                                mt="md",
-                                radius="md",
-                                id="upload-button-gamma-information"
-                            ),
+                            #dmc.Button(
+                            #    "Display Details",
+                            #    color="blue",
+                            #    fullWidth=True,
+                            #    mt="md",
+                            #    radius="md",
+                            #    id="upload-button-gamma-information"
+                            #),
                         ],
                         withBorder=True,
                         shadow="sm",
