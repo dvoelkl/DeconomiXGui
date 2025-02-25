@@ -823,5 +823,5 @@ server = app.server
 if __name__ == "__main__":
     app.title = "DeconomiX"
 
-    app.run(debug=True)
+    app.run(debug=False)
     #app.run_server(debug=False)
