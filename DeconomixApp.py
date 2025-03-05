@@ -23,11 +23,6 @@ import numpy as np
 import base64
 import io
 
-# Import for longer running callbacks, such that DTD can run
-import diskcache
-
-cache = diskcache.Cache("./cache")
-background_callback_manager = DiskcacheManager(cache)
 
 # Imports for Deconomix
 from utils.DeconomixFile import DeconomixFile
