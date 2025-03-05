@@ -6,11 +6,9 @@
 
 
 ######################### IMPORTS #########################
-import time
 
 import dash_mantine_components as dmc
 import deconomix.methods
-import pandas as pd
 from dash import Dash, Input, Output, State, callback, _dash_renderer, dcc, html, ctx, DiskcacheManager, set_props, \
     no_update
 from pages.Uploading import get_upload_layout, get_file_properties_layout, get_distribution_plot
