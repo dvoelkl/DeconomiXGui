@@ -141,7 +141,7 @@ def display_dtd(n_clicks):
     else:
         checkApplEnabled = False
 
-    localDCXCache.DTDTab = get_dtd_layout(checkApplEnabled)
+    localDCXCache.DTDTab = get_dtd_layout(checkApplEnabled, localDCXCache.DeconomixFile.X_mat.shape[0])
     return localDCXCache.DTDTab
 
 
@@ -361,42 +361,47 @@ def prepareDTD(train_n_mix, train_n_cells, test_n_mix, test_n_cell, fApplData, n
     Output('nav-adtd', 'disabled', allow_duplicate=True),
     Input('dtd-exec-overlay', 'visible'),
     State('dtd-par-check-ApplData', 'checked'),
+    State('dtd-par-num-genes', 'value'),
     prevent_initial_call=True
 )
-def runDTD(exec_overlay_visible, runOnApplChecked):
+def runDTD(exec_overlay_visible, runOnApplChecked, nGenes):
     global localDCXCache
 
     if "dtd-exec-overlay" == ctx.triggered_id and exec_overlay_visible is True:
-
+        print(nGenes)
         print("Simulating training data")
         _, localDCXCache.DTD_Y_train, localDCXCache.DTD_C_train = simulate_data(localDCXCache.DeconomixFile.Train,
                                                                                 localDCXCache.DTD_config.train_n_mixtures,
-                                                                                localDCXCache.DTD_config.train_n_cells)
+                                                                                localDCXCache.DTD_config.train_n_cells,
+                                                                                n_genes=nGenes)
 
         print("Simulating testing data")
         _, localDCXCache.DTD_Y_test, localDCXCache.DTD_C_test = simulate_data(localDCXCache.DeconomixFile.Test,
                                                                               localDCXCache.DTD_config.test_n_mixtures,
                                                                               localDCXCache.DTD_config.test_n_cells)
 
-        localDCXCache.DTDmodel = DTD(localDCXCache.DeconomixFile.X_mat,
+        # Ensure genes of test and train data are the same
+        localDCXCache.DTD_Y_test = localDCXCache.DTD_Y_test.loc[localDCXCache.DTD_Y_train.index,:]
+
+        localDCXCache.DTDmodel = DTD(localDCXCache.DeconomixFile.X_mat.loc[localDCXCache.DTD_Y_train.index,:],
                                      localDCXCache.DTD_Y_train,
                                      localDCXCache.DTD_C_train)
 
         localDCXCache.DTDmodel.run(localDCXCache.DTD_config.nIter)
 
         # Estimate Compositions
-        localDCXCache.DTD_C_train_est = calculate_estimated_composition(localDCXCache.DeconomixFile.X_mat,
+        localDCXCache.DTD_C_train_est = calculate_estimated_composition(localDCXCache.DeconomixFile.X_mat.loc[localDCXCache.DTD_Y_train.index,:],
                                                                         localDCXCache.DTD_Y_train,
                                                                         localDCXCache.DTDmodel.gamma)
 
-        localDCXCache.DTD_C_test_est = calculate_estimated_composition(localDCXCache.DeconomixFile.X_mat,
+        localDCXCache.DTD_C_test_est = calculate_estimated_composition(localDCXCache.DeconomixFile.X_mat.loc[localDCXCache.DTD_Y_train.index,:],
                                                                        localDCXCache.DTD_Y_test,
                                                                        localDCXCache.DTDmodel.gamma)
 
         if localDCXCache.DeconomixFile.Application is not None and runOnApplChecked is True:
-            localDCXCache.DTD_Y_appl = localDCXCache.DeconomixFile.Application
+            localDCXCache.DTD_Y_appl = localDCXCache.DeconomixFile.Application.loc[localDCXCache.DTD_Y_train.index,:]
 
-            localDCXCache.DTD_C_appl_est = calculate_estimated_composition(localDCXCache.DeconomixFile.X_mat,
+            localDCXCache.DTD_C_appl_est = calculate_estimated_composition(localDCXCache.DeconomixFile.X_mat.loc[localDCXCache.DTD_Y_train.index,:],
                                                                            localDCXCache.DTD_Y_appl,
                                                                            localDCXCache.DTDmodel.gamma)
 
@@ -610,11 +615,11 @@ def runADTDHPS(n_clicks, lambda_min, lambda_max, npoints, dataset, gr_disabled, 
     if dataset == 'train':
         Y_hps = localDCXCache.DTD_Y_train
     elif dataset == 'appl':
-        Y_hps = localDCXCache.DeconomixFile.Application
+        Y_hps = localDCXCache.DeconomixFile.Application.loc[localDCXCache.DTDmodel.gamma.index,:] # Ensure that application has the same genes as DTD model
     else:
         Y_hps = localDCXCache.DTD_Y_test
 
-    localDCXCache.ADTD_HPS_model = deconomix.methods.HPS(localDCXCache.DeconomixFile.X_mat,
+    localDCXCache.ADTD_HPS_model = deconomix.methods.HPS(localDCXCache.DeconomixFile.X_mat.loc[Y_hps.index,:],
                                                          Y_hps,
                                                          localDCXCache.DTDmodel.gamma,
                                                          lambda_min=lambda_min,
@@ -666,7 +671,7 @@ def runADTD(n_clicks, Cstatic, Deltastatic, lambda1, lambda2, dataset, nIter, hp
     if dataset == 'train':
         Y_adtd = localDCXCache.DTD_Y_train
     elif dataset == 'appl':
-        Y_adtd = localDCXCache.DeconomixFile.Application
+        Y_adtd = localDCXCache.DeconomixFile.Application.loc[localDCXCache.DTDmodel.gamma.index,:] # Ensure that application has the same genes as DTD model    
     else:
         Y_adtd = localDCXCache.DTD_Y_test
 
@@ -678,7 +683,7 @@ def runADTD(n_clicks, Cstatic, Deltastatic, lambda1, lambda2, dataset, nIter, hp
     else:
         gamma = localDCXCache.DTDmodel.gamma
 
-    localDCXCache.ADTDmodel = deconomix.methods.ADTD(localDCXCache.DeconomixFile.X_mat,
+    localDCXCache.ADTDmodel = deconomix.methods.ADTD(localDCXCache.DeconomixFile.X_mat.loc[Y_adtd.index,:],
                                                      Y_adtd,
                                                      gamma,
                                                      lambda1,

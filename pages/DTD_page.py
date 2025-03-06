@@ -14,7 +14,7 @@ import dash_bio as dashbio
 from utils.DeconomixCache import DCXCache
 import numpy as np
 
-def get_dtd_layout(applCheckEnabled):
+def get_dtd_layout(applCheckEnabled, geneCount):
 
     dtd_layout = dmc.Stack(
         [
@@ -50,6 +50,7 @@ def get_dtd_layout(applCheckEnabled):
                         dmc.Fieldset(
                             children=[
                                 dmc.Checkbox(id="dtd-par-check-ApplData", label="Run on Application Data", labelPosition='left', mb=10, disabled=not applCheckEnabled),
+                                dmc.NumberInput(id="dtd-par-num-genes", label="Number of Genes", value=geneCount, max=geneCount, min=1, allowDecimal=False, allowNegative=False),
                                 dmc.NumberInput(id="dtd-par-num-iter", label="Number of Iterations", value=1000, min=1, allowDecimal=False, allowNegative=False),
                                 dmc.Button("Execute", id="dtd-run", fullWidth=True, mt=10)
                             ],
