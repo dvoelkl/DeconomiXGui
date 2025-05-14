@@ -873,6 +873,8 @@ def decode_input(content):
 
 @callback(
     Output("dcxconvert-download", "data"),
+    Output("dcxconvert-modal", "opened", allow_duplicate=True),
+    Output("dcxconvert-error-text", "children"),
     Input("dcxconvert-download-btn", "n_clicks"),
     State("dcxconvert-upload-x", "contents"),
     State("dcxconvert-upload-train", "contents"),
@@ -888,11 +890,21 @@ def decode_input(content):
 )
 def dcxconvert_download(n_clicks, x, train, test, app, author, desc, filename, appdesc, traindesc, testdesc):
     if not (n_clicks and x and train and test and author and filename):
-        return None
+        return None, no_update, ""
     X_mat = decode_input(x)
     Train = decode_input(train)
     Test = decode_input(test)
     Application = decode_input(app) if app else None
+    # Konsistenzprüfung der Zeilenindizes
+    sets = {"Reference Profile X": set(X_mat.index), "Train": set(Train.index), "Test": set(Test.index)}
+    if Application is not None:
+        sets["Application"] = set(Application.index)
+    all_names = list(sets.keys())
+    for i in range(len(all_names)):
+        for j in range(i+1, len(all_names)):
+            if sets[all_names[i]] != sets[all_names[j]]:
+                msg = f"The used genes between {all_names[i]} and {all_names[j]} differ, please make sure, that the same set of genes is used."
+                return None, True, msg
     deconomix_file = DeconomixFile(
         X_mat=X_mat,
         Train=Train,
@@ -908,8 +920,7 @@ def dcxconvert_download(n_clicks, x, train, test, app, author, desc, filename, a
     b64str = deconomix_file.to_contents_string()
     b64 = b64str.split(",", 1)[-1]
     file_bytes = base64.b64decode(b64)
-    return dcc.send_bytes(lambda buf: buf.write(file_bytes), f"{filename}.dcx")
-
+    return dcc.send_bytes(lambda buf: buf.write(file_bytes), f"{filename}.dcx"), False, ""
 
 server = app.server
 

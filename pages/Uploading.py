@@ -206,10 +206,11 @@ def get_upload_layout():
                             dmc.TextInput(id="dcxconvert-testdesc", placeholder="Description of test data", style={"flex":1}),
                         ], gap="md"),
                         dmc.Group([
-                            dmc.Button("Download", id="dcxconvert-download-btn", color="green", disabled=True, n_clicks=0),
-                            dmc.Button("Cancel", id="dcxconvert-cancel-btn", color="red", variant="outline", n_clicks=0),
+                            dmc.Button("Download", id="dcxconvert-download-btn", color="green", disabled=True),
+                            dmc.Button("Cancel", id="dcxconvert-cancel-btn", color="red", variant="outline"),
                         ], style={"justifyContent": "flex-end", "gap": 10}, mt=10),
                         dcc.Download(id="dcxconvert-download"),
+                        dmc.Text(id="dcxconvert-error-text", style={"color": "red", "minHeight": 24, "marginTop": 4, "marginBottom": 4}, size="sm"),
                     ])
                 ]
             ),
