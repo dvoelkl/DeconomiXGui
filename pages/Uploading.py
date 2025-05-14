@@ -118,6 +118,11 @@ def get_upload_layout():
                 styles={"modal": {"width": 700}},
                 children=[
                     dmc.Stack([
+                        dmc.Text(
+                            "Convert data to the DeconomiX .dcx format. Supported input types: CSV (with header and index) or AnnData (.h5ad) files. Required fields: Reference Profile X, Single Cell Train Data, Single Cell Test Data. Optional: Application Data. All fields accept either CSV or AnnData.",
+                            size="sm",
+                            mb=10
+                        ),
                         dmc.Group([
                             dmc.Text("Author*", w=120),
                             dmc.TextInput(id="dcxconvert-author", placeholder="Author", style={"flex":1}),
