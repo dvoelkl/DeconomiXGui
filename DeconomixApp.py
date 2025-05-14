@@ -22,6 +22,8 @@ import numpy as np
 
 import base64
 import io
+import pandas as pd
+import scanpy as sc
 
 
 # Imports for Deconomix
@@ -816,10 +818,114 @@ def storeCurrentADTDTab(skeletonVisible, currADTDTab):
     localDCXCache.ADTDTab = currADTDTab
 
 
+@callback(
+    Output("dcxconvert-modal", "opened"),
+    [Input("dcxconvert-trigger", "n_clicks"),
+     Input("dcxconvert-cancel-btn", "n_clicks")],
+    [State("dcxconvert-modal", "opened")],
+    prevent_initial_call=True
+)
+def toggle_dcxconvert_modal(open_click, cancel_click, modal_open):
+    ctx_id = ctx.triggered_id
+    if ctx_id == "dcxconvert-trigger":
+        return True
+    elif ctx_id == "dcxconvert-cancel-btn":
+        return False
+    return modal_open
+
+@callback(
+    [Output("dcxconvert-indicator-x", "style"),
+     Output("dcxconvert-indicator-train", "style"),
+     Output("dcxconvert-indicator-test", "style"),
+     Output("dcxconvert-indicator-app", "style"),
+     Output("dcxconvert-download-btn", "disabled")],
+    [Input("dcxconvert-upload-x", "contents"),
+     Input("dcxconvert-upload-train", "contents"),
+     Input("dcxconvert-upload-test", "contents"),
+     Input("dcxconvert-upload-app", "contents"),
+     Input("dcxconvert-author", "value"),
+     Input("dcxconvert-filename", "value")]
+)
+def update_dcxconvert_indicators(x, train, test, app, author, filename):
+    x_style = {"display": "inline"} if x else {"display": "none"}
+    train_style = {"display": "inline"} if train else {"display": "none"}
+    test_style = {"display": "inline"} if test else {"display": "none"}
+    app_style = {"display": "inline"} if app else {"display": "none"}
+    enable = bool(x and train and test and author and filename)
+    return x_style, train_style, test_style, app_style, not enable
+
+
+def decode_input(content):
+    if content is None:
+        return None
+    header = content[:30]
+    if header.startswith("data:application/octet-stream"):  # AnnData (h5ad)
+        _, b64data = content.split(",", 1)
+        decoded = base64.b64decode(b64data)
+        with io.BytesIO(decoded) as f:
+            adata = sc.read_h5ad(f)
+            return adata.to_df() if hasattr(adata, 'to_df') else pd.DataFrame(adata.X, index=adata.obs_names, columns=adata.var_names)
+    else:  # CSV
+        _, content_string = content.split(',')
+        decoded = base64.b64decode(content_string)
+        return pd.read_csv(io.BytesIO(decoded), header=0, index_col=0)
+
+
+@callback(
+    Output("dcxconvert-download", "data"),
+    Output("dcxconvert-modal", "opened", allow_duplicate=True),
+    Output("dcxconvert-error-text", "children"),
+    Input("dcxconvert-download-btn", "n_clicks"),
+    State("dcxconvert-upload-x", "contents"),
+    State("dcxconvert-upload-train", "contents"),
+    State("dcxconvert-upload-test", "contents"),
+    State("dcxconvert-upload-app", "contents"),
+    State("dcxconvert-author", "value"),
+    State("dcxconvert-desc", "value"),
+    State("dcxconvert-filename", "value"),
+    State("dcxconvert-appdesc", "value"),
+    State("dcxconvert-traindesc", "value"),
+    State("dcxconvert-testdesc", "value"),
+    prevent_initial_call=True
+)
+def dcxconvert_download(n_clicks, x, train, test, app, author, desc, filename, appdesc, traindesc, testdesc):
+    if not (n_clicks and x and train and test and author and filename):
+        return None, no_update, ""
+    X_mat = decode_input(x)
+    Train = decode_input(train)
+    Test = decode_input(test)
+    Application = decode_input(app) if app else None
+    # Konsistenzprüfung der Zeilenindizes
+    sets = {"Reference Profile X": set(X_mat.index), "Train": set(Train.index), "Test": set(Test.index)}
+    if Application is not None:
+        sets["Application"] = set(Application.index)
+    all_names = list(sets.keys())
+    for i in range(len(all_names)):
+        for j in range(i+1, len(all_names)):
+            if sets[all_names[i]] != sets[all_names[j]]:
+                msg = f"The used genes between {all_names[i]} and {all_names[j]} differ, please make sure, that the same set of genes is used."
+                return None, True, msg
+    deconomix_file = DeconomixFile(
+        X_mat=X_mat,
+        Train=Train,
+        Test=Test,
+        Application=Application,
+        description=desc or "",
+        author=author,
+        filename=filename
+    )
+    deconomix_file.TrainDesc = traindesc or "Dataset used for Training"
+    deconomix_file.TestDesc = testdesc or "Dataset used for Testing"
+    deconomix_file.ApplicationDesc = appdesc or "Bulk data for Application"
+    b64str = deconomix_file.to_contents_string()
+    b64 = b64str.split(",", 1)[-1]
+    file_bytes = base64.b64decode(b64)
+    return dcc.send_bytes(lambda buf: buf.write(file_bytes), f"{filename}.dcx"), False, ""
+
 server = app.server
 
 if __name__ == "__main__":
     app.title = "DeconomiX"
 
-    app.run(debug=False)
+    app.run(debug=True)
     #app.run_server(debug=False)
