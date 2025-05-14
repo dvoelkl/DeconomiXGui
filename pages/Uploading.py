@@ -30,7 +30,10 @@ def get_upload_layout():
                 },
                 multiple=False
             ),
-            dmc.Button("Import from AnnData", id="anndata-trigger-import"),
+            dmc.Group([
+                dmc.Button("Import from AnnData", id="anndata-trigger-import"),
+                dmc.Button("DCX Konverter", id="dcxconvert-trigger", color="teal", ml=10),
+            ]),
             dmc.Modal(
                 title="File format not supported",
                 id="upload-file-not-supported-alert",
@@ -106,8 +109,103 @@ def get_upload_layout():
                         ])
                     ])
                 ],
-            )
-
+            ),
+            dmc.Modal(
+                title="DCX Datei aus CSV erstellen",
+                id="dcxconvert-modal",
+                opened=False,
+                children=[
+                    dmc.Stack([
+                        dmc.Group([
+                            dmc.Text("Author*", w=120),
+                            dmc.TextInput(id="dcxconvert-author", placeholder="Author", style={"flex":1}),
+                        ], gap="md"),
+                        dmc.Group([
+                            dmc.Text("File Description", w=120),
+                            dmc.TextInput(id="dcxconvert-desc", placeholder="Description", style={"flex":1}),
+                        ], gap="md"),
+                        dmc.Group([
+                            dmc.Text("Filename*", w=120),
+                            dmc.TextInput(id="dcxconvert-filename", placeholder="Filename without .dcx", style={"flex":1}),
+                        ], gap="md"),
+                        dmc.Divider(label="Required", my=10),
+                        dmc.Stack([
+                            dmc.Text("Reference Profile X*"),
+                            dmc.Badge("Uploaded", id="dcxconvert-indicator-x", color="green", variant="outline", style={"display": "none"}),
+                            dcc.Upload(
+                                id="dcxconvert-upload-x",
+                                children=html.Div(['Drag and Drop or ', html.A('Select File')]),
+                                style={
+                                    'width': '100%', 'height': '60px', 'lineHeight': '60px',
+                                    'borderWidth': '1px', 'borderStyle': 'dashed', 'borderRadius': '5px',
+                                    'textAlign': 'center', 'margin': '10px'
+                                },
+                                multiple=False
+                            ),
+                        ]),
+                        dmc.Stack([
+                            dmc.Text("Single Cell Train Data*"),
+                            dmc.Badge("Uploaded", id="dcxconvert-indicator-train", color="green", variant="outline", style={"display": "none"}),
+                            dcc.Upload(
+                                id="dcxconvert-upload-train",
+                                children=html.Div(['Drag and Drop or ', html.A('Select File')]),
+                                style={
+                                    'width': '100%', 'height': '60px', 'lineHeight': '60px',
+                                    'borderWidth': '1px', 'borderStyle': 'dashed', 'borderRadius': '5px',
+                                    'textAlign': 'center', 'margin': '10px'
+                                },
+                                multiple=False
+                            ),
+                        ]),
+                        dmc.Stack([
+                            dmc.Text("Single Cell Test Data*"),
+                            dmc.Badge("Uploaded", id="dcxconvert-indicator-test", color="green", variant="outline", style={"display": "none"}),
+                            dcc.Upload(
+                                id="dcxconvert-upload-test",
+                                children=html.Div(['Drag and Drop or ', html.A('Select File')]),
+                                style={
+                                    'width': '100%', 'height': '60px', 'lineHeight': '60px',
+                                    'borderWidth': '1px', 'borderStyle': 'dashed', 'borderRadius': '5px',
+                                    'textAlign': 'center', 'margin': '10px'
+                                },
+                                multiple=False
+                            ),
+                        ]),
+                        dmc.Divider(label="Optional Fields", my=10),
+                        dmc.Stack([
+                            dmc.Text("Application Data (optional)"),
+                            dmc.Badge("Uploaded", id="dcxconvert-indicator-app", color="green", variant="outline", style={"display": "none"}),
+                            dcc.Upload(
+                                id="dcxconvert-upload-app",
+                                children=html.Div(['Drag and Drop or ', html.A('Select File')]),
+                                style={
+                                    'width': '100%', 'height': '60px', 'lineHeight': '60px',
+                                    'borderWidth': '1px', 'borderStyle': 'dashed', 'borderRadius': '5px',
+                                    'textAlign': 'center', 'margin': '10px'
+                                },
+                                multiple=False
+                            ),
+                        ]),
+                        dmc.Group([
+                            dmc.Text("Bulk Application Description", w=180),
+                            dmc.TextInput(id="dcxconvert-appdesc", placeholder="Description of application data", style={"flex":1}),
+                        ], gap="md"),
+                        dmc.Group([
+                            dmc.Text("Train Description", w=180),
+                            dmc.TextInput(id="dcxconvert-traindesc", placeholder="Description of train data", style={"flex":1}),
+                        ], gap="md"),
+                        dmc.Group([
+                            dmc.Text("Test Description", w=180),
+                            dmc.TextInput(id="dcxconvert-testdesc", placeholder="Description of test data", style={"flex":1}),
+                        ], gap="md"),
+                        dmc.Group([
+                            dmc.Button("Download", id="dcxconvert-download-btn", color="green", disabled=True, n_clicks=0),
+                            dmc.Button("Cancel", id="dcxconvert-cancel-btn", color="red", variant="outline", n_clicks=0),
+                        ], style={"justifyContent": "flex-end", "gap": 10}, mt=10),
+                        dcc.Download(id="dcxconvert-download"),
+                    ])
+                ]
+            ),
         ]),
         dmc.Skeleton(
                     visible=False,

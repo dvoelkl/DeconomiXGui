@@ -22,6 +22,7 @@ import numpy as np
 
 import base64
 import io
+import pandas as pd
 
 
 # Imports for Deconomix
@@ -816,10 +817,93 @@ def storeCurrentADTDTab(skeletonVisible, currADTDTab):
     localDCXCache.ADTDTab = currADTDTab
 
 
+@callback(
+    Output("dcxconvert-modal", "opened"),
+    [Input("dcxconvert-trigger", "n_clicks"),
+     Input("dcxconvert-cancel-btn", "n_clicks")],
+    [State("dcxconvert-modal", "opened")],
+    prevent_initial_call=True
+)
+def toggle_dcxconvert_modal(open_click, cancel_click, modal_open):
+    ctx_id = ctx.triggered_id
+    if ctx_id == "dcxconvert-trigger":
+        return True
+    elif ctx_id == "dcxconvert-cancel-btn":
+        return False
+    return modal_open
+
+@callback(
+    [Output("dcxconvert-indicator-x", "style"),
+     Output("dcxconvert-indicator-train", "style"),
+     Output("dcxconvert-indicator-test", "style"),
+     Output("dcxconvert-indicator-app", "style"),
+     Output("dcxconvert-download-btn", "disabled")],
+    [Input("dcxconvert-upload-x", "contents"),
+     Input("dcxconvert-upload-train", "contents"),
+     Input("dcxconvert-upload-test", "contents"),
+     Input("dcxconvert-upload-app", "contents"),
+     Input("dcxconvert-author", "value"),
+     Input("dcxconvert-filename", "value")]
+)
+def update_dcxconvert_indicators(x, train, test, app, author, filename):
+    x_style = {"display": "inline"} if x else {"display": "none"}
+    train_style = {"display": "inline"} if train else {"display": "none"}
+    test_style = {"display": "inline"} if test else {"display": "none"}
+    app_style = {"display": "inline"} if app else {"display": "none"}
+    enable = bool(x and train and test and author and filename)
+    return x_style, train_style, test_style, app_style, not enable
+
+
+@callback(
+    Output("dcxconvert-download", "data"),
+    Input("dcxconvert-download-btn", "n_clicks"),
+    State("dcxconvert-upload-x", "contents"),
+    State("dcxconvert-upload-train", "contents"),
+    State("dcxconvert-upload-test", "contents"),
+    State("dcxconvert-upload-app", "contents"),
+    State("dcxconvert-author", "value"),
+    State("dcxconvert-desc", "value"),
+    State("dcxconvert-filename", "value"),
+    State("dcxconvert-appdesc", "value"),
+    State("dcxconvert-traindesc", "value"),
+    State("dcxconvert-testdesc", "value"),
+    prevent_initial_call=True
+)
+def dcxconvert_download(n_clicks, x, train, test, app, author, desc, filename, appdesc, traindesc, testdesc):
+    if not (n_clicks and x and train and test and author and filename):
+        return None
+    def decode_csv(content):
+        _, content_string = content.split(',')
+        decoded = base64.b64decode(content_string)
+        return pd.read_csv(io.BytesIO(decoded), header=0, index_col=0)
+    X_mat = decode_csv(x)
+    Train = decode_csv(train)
+    Test = decode_csv(test)
+    Application = decode_csv(app) if app else None
+    deconomix_file = DeconomixFile(
+        X_mat=X_mat,
+        Train=Train,
+        Test=Test,
+        Application=Application,
+        description=desc or "",
+        author=author,
+        filename=filename
+    )
+    deconomix_file.TrainDesc = traindesc or "Dataset used for Training"
+    deconomix_file.TestDesc = testdesc or "Dataset used for Testing"
+    deconomix_file.ApplicationDesc = appdesc or "Bulk data for Application"
+    # Serialisieren als Bytes
+    b64str = deconomix_file.to_contents_string()
+    # Extrahiere nur den base64-Teil
+    b64 = b64str.split(",", 1)[-1]
+    file_bytes = base64.b64decode(b64)
+    return dcc.send_bytes(lambda buf: buf.write(file_bytes), f"{filename}.dcx")
+
+
 server = app.server
 
 if __name__ == "__main__":
     app.title = "DeconomiX"
 
-    app.run(debug=False)
+    app.run(debug=True)
     #app.run_server(debug=False)
