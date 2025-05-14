@@ -32,7 +32,7 @@ def get_upload_layout():
             ),
             dmc.Group([
                 dmc.Button("Import from AnnData", id="anndata-trigger-import"),
-                dmc.Button("DCX Konverter", id="dcxconvert-trigger", color="teal", ml=10),
+                dmc.Button("DCX Converter", id="dcxconvert-trigger", color="teal", ml=10),
             ]),
             dmc.Modal(
                 title="File format not supported",
@@ -111,9 +111,11 @@ def get_upload_layout():
                 ],
             ),
             dmc.Modal(
-                title="DCX Datei aus CSV erstellen",
+                title="Create DCX File",
                 id="dcxconvert-modal",
                 opened=False,
+                size="lg",
+                styles={"modal": {"width": 700}},
                 children=[
                     dmc.Stack([
                         dmc.Group([
@@ -173,7 +175,7 @@ def get_upload_layout():
                         ]),
                         dmc.Divider(label="Optional Fields", my=10),
                         dmc.Stack([
-                            dmc.Text("Application Data (optional)"),
+                            dmc.Text("Bulk Application Data (optional)"),
                             dmc.Badge("Uploaded", id="dcxconvert-indicator-app", color="green", variant="outline", style={"display": "none"}),
                             dcc.Upload(
                                 id="dcxconvert-upload-app",
@@ -187,7 +189,7 @@ def get_upload_layout():
                             ),
                         ]),
                         dmc.Group([
-                            dmc.Text("Bulk Application Description", w=180),
+                            dmc.Text("Application Description", w=180),
                             dmc.TextInput(id="dcxconvert-appdesc", placeholder="Description of application data", style={"flex":1}),
                         ], gap="md"),
                         dmc.Group([

@@ -23,6 +23,7 @@ import numpy as np
 import base64
 import io
 import pandas as pd
+import scanpy as sc
 
 
 # Imports for Deconomix
@@ -854,6 +855,22 @@ def update_dcxconvert_indicators(x, train, test, app, author, filename):
     return x_style, train_style, test_style, app_style, not enable
 
 
+def decode_input(content):
+    if content is None:
+        return None
+    header = content[:30]
+    if header.startswith("data:application/octet-stream"):  # AnnData (h5ad)
+        _, b64data = content.split(",", 1)
+        decoded = base64.b64decode(b64data)
+        with io.BytesIO(decoded) as f:
+            adata = sc.read_h5ad(f)
+            return adata.to_df() if hasattr(adata, 'to_df') else pd.DataFrame(adata.X, index=adata.obs_names, columns=adata.var_names)
+    else:  # CSV
+        _, content_string = content.split(',')
+        decoded = base64.b64decode(content_string)
+        return pd.read_csv(io.BytesIO(decoded), header=0, index_col=0)
+
+
 @callback(
     Output("dcxconvert-download", "data"),
     Input("dcxconvert-download-btn", "n_clicks"),
@@ -872,14 +889,10 @@ def update_dcxconvert_indicators(x, train, test, app, author, filename):
 def dcxconvert_download(n_clicks, x, train, test, app, author, desc, filename, appdesc, traindesc, testdesc):
     if not (n_clicks and x and train and test and author and filename):
         return None
-    def decode_csv(content):
-        _, content_string = content.split(',')
-        decoded = base64.b64decode(content_string)
-        return pd.read_csv(io.BytesIO(decoded), header=0, index_col=0)
-    X_mat = decode_csv(x)
-    Train = decode_csv(train)
-    Test = decode_csv(test)
-    Application = decode_csv(app) if app else None
+    X_mat = decode_input(x)
+    Train = decode_input(train)
+    Test = decode_input(test)
+    Application = decode_input(app) if app else None
     deconomix_file = DeconomixFile(
         X_mat=X_mat,
         Train=Train,
@@ -892,9 +905,7 @@ def dcxconvert_download(n_clicks, x, train, test, app, author, desc, filename, a
     deconomix_file.TrainDesc = traindesc or "Dataset used for Training"
     deconomix_file.TestDesc = testdesc or "Dataset used for Testing"
     deconomix_file.ApplicationDesc = appdesc or "Bulk data for Application"
-    # Serialisieren als Bytes
     b64str = deconomix_file.to_contents_string()
-    # Extrahiere nur den base64-Teil
     b64 = b64str.split(",", 1)[-1]
     file_bytes = base64.b64decode(b64)
     return dcc.send_bytes(lambda buf: buf.write(file_bytes), f"{filename}.dcx")
