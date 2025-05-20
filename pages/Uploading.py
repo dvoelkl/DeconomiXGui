@@ -254,7 +254,7 @@ def get_upload_layout():
 
     return upload_layout
 
-def get_layout():
+def get_layout(session_id=None):
     return get_upload_layout()
 
 def register_callbacks(app):
