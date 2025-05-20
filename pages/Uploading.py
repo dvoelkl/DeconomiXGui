@@ -22,6 +22,22 @@ def get_indicator_style(uploaded):
 def all_required_fields_filled(*fields):
     return all(fields)
 
+# --- Hilfsfunktion für Upload-Parsing (aus DeconomixApp.py migriert) ---
+def decode_input(content):
+    if content is None:
+        return None
+    header = content[:30]
+    if header.startswith("data:application/octet-stream"):  # AnnData (h5ad)
+        _, b64data = content.split(",", 1)
+        decoded = base64.b64decode(b64data)
+        with io.BytesIO(decoded) as f:
+            adata = sc.read_h5ad(f)
+            return adata.to_df() if hasattr(adata, 'to_df') else pd.DataFrame(adata.X, index=adata.obs_names, columns=adata.var_names)
+    else:  # CSV
+        _, content_string = content.split(',')
+        decoded = base64.b64decode(content_string)
+        return pd.read_csv(io.BytesIO(decoded), header=0, index_col=0)
+
 def get_upload_layout():
     upload_layout = dmc.Stack([
         html.Div([
@@ -363,10 +379,14 @@ def register_callbacks(app):
         if not (n_clicks and x and train and test and author and filename):
             return dash.no_update, dash.no_update, "Please fill all required fields."
         try:
-            deconomix_file = DeconomixFile.from_upload(
-                x, train, test, app_,
-                author=author,
+            # Nutze decode_input für alle Uploads (AnnData oder CSV)
+            deconomix_file = DeconomixFile(
+                X_mat=decode_input(x),
+                Train=decode_input(train),
+                Test=decode_input(test),
+                Application=decode_input(app_),
                 description=desc,
+                author=author,
                 filename=filename
             )
             deconomix_file.TrainDesc = traindesc or "Dataset used for Training"
@@ -424,8 +444,8 @@ def register_callbacks(app):
     )
     def showTrainDistribution(trainDistributionClicked, opened):
         distribution_plot = dmc.Text("Here should be a diagram")
-        if localDCXCache.DeconomiXFile.Train is not None:
-            distribution_plot = get_distribution_plot(localDCXCache.DeconomiXFile.Train)
+        if localDCXCache.DeconomixFile.Train is not None:
+            distribution_plot = get_distribution_plot(localDCXCache.DeconomixFile.Train)
         return not opened, distribution_plot
 
     @app.callback(
@@ -437,8 +457,8 @@ def register_callbacks(app):
     )
     def showTestDistribution(testDistributionClicked, opened):
         distribution_plot = dmc.Text("Here should be a diagram")
-        if localDCXCache.DeconomiXFile.Test is not None:
-            distribution_plot = get_distribution_plot(localDCXCache.DeconomiXFile.Test)
+        if localDCXCache.DeconomixFile.Test is not None:
+            distribution_plot = get_distribution_plot(localDCXCache.DeconomixFile.Test)
         return not opened, distribution_plot
 
     @app.callback(
