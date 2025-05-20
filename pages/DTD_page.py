@@ -11,10 +11,10 @@ from dash import dcc
 from dash import html
 import plotly.graph_objects as go
 import dash_bio as dashbio
-from utils.DeconomixCache import DCXCache
 import numpy as np
 
 def get_layout(checkApplEnabled=True, n_genes=0):
+    from utils.global_cache import localDCXCache
     return get_dtd_layout(checkApplEnabled, n_genes)
 
 def register_callbacks(app):
@@ -223,6 +223,15 @@ def register_callbacks(app):
     def storeCurrentDTDTab(skeletonVisible, currDTDTab):
         # Store current DTD tab in cache
         localDCXCache.DTDTab = currDTDTab
+
+    @app.callback(
+        Output("dtd-skeleton", "visible", allow_duplicate=True),
+        Input("nav-dtd", "n_clicks"),
+        prevent_initial_call=True
+    )
+    def show_dtd_skeleton_on_tab(n_clicks):
+        # Only show skeleton if DTDmodel is None (i.e., no results yet), otherwise keep it hidden
+        return localDCXCache.DTDmodel is None
 
 def get_dtd_layout(applCheckEnabled, geneCount):
     from utils.global_cache import localDCXCache

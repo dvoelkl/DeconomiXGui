@@ -10,13 +10,14 @@ import pandas as pd
 from dash import dcc
 from dash import html
 import plotly.graph_objects as go
-from utils.DeconomixCache import DCXCache
 import numpy as np
 import matplotlib
 from matplotlib.colors import CenteredNorm
+from utils.global_cache import localDCXCache
 
-def get_layout(checkApplEnabled=True, localDCXCache=None):
-    return get_adtd_layout(checkApplEnabled, localDCXCache)
+def get_layout(checkApplEnabled=True):
+    from utils.global_cache import localDCXCache
+    return get_adtd_layout(checkApplEnabled)
 
 def register_callbacks(app):
     from dash import Output, Input, State, no_update, ctx
@@ -25,7 +26,6 @@ def register_callbacks(app):
     import numpy as np
     from pages.ADTD_page import getHPSPlot, get_tab_adtd_mixture, get_tab_adtd_geneRegulation, get_gr_plot
     import plotly.graph_objects as go
-    from utils.global_cache import localDCXCache
     import deconomix.methods
     # --- ADTD Callbacks ---
     # Callback for updating lambda1 input field
@@ -68,7 +68,6 @@ def register_callbacks(app):
         prevent_initial_call=True
     )
     def runADTDHPS(n_clicks, lambda_min, lambda_max, npoints, dataset, gr_disabled, mix_disabled):
-        global localDCXCache
         localDCXCache.ADTD_config.lambda2min = lambda_min
         localDCXCache.ADTD_config.lambda2max = lambda_max
         localDCXCache.ADTD_config.nPoints = npoints
@@ -113,7 +112,6 @@ def register_callbacks(app):
         prevent_initial_call=True
     )
     def runADTD(n_clicks, Cstatic, Deltastatic, lambda1, lambda2, dataset, nIter, hps_disabled, gr_disabled, mix_disabled):
-        global localDCXCache
         previousDataset = localDCXCache.ADTD_config.Dataset
         localDCXCache.ADTD_config.Cstatic = Cstatic
         localDCXCache.ADTD_config.Deltastatic = Deltastatic
@@ -157,7 +155,6 @@ def register_callbacks(app):
         prevent_initial_call=True
     )
     def UpdateADTDPiePlot(selectedMixture):
-        global localDCXCache
         selected_data = localDCXCache.ADTDmodel.C_est.copy()
         selected_data.loc['hidden'] = localDCXCache.ADTDmodel.c_est.iloc[0]
         mixture = selected_data.iloc[:, int(selectedMixture[1:]) - 1]
@@ -190,7 +187,6 @@ def register_callbacks(app):
         State("adtd-dataset-combo", "value")
     )
     def ADTDDownloadEstimate(n_clicks, selectedDataset):
-        global localDCXCache
         if "adtd-mix-dataset-button-download" == ctx.triggered_id:
             selected_data = localDCXCache.ADTDmodel.C_est.copy()
             selected_data.loc['hidden'] = localDCXCache.ADTDmodel.c_est.iloc[0]
@@ -206,7 +202,6 @@ def register_callbacks(app):
         State("adtd-gr-plot", "figure")
     )
     def UpdateGeneRegulationPlot(genes, curr_fig):
-        global localDCXCache
         error = ""
         fig = curr_fig
         if len(genes) < 1:
@@ -222,7 +217,6 @@ def register_callbacks(app):
         State("adtd-dataset-combo", "value")
     )
     def ADTDDownloadGR(n_clicks, selectedDataset):
-        global localDCXCache
         if "adtd-gr-button-download" == ctx.triggered_id:
             selected_data = localDCXCache.ADTDmodel.Delta_est
             return dcc.send_data_frame(selected_data.to_csv, f"{selectedDataset}_Delta.csv")
@@ -236,7 +230,6 @@ def register_callbacks(app):
         State("adtd-skeleton", "visible"),
     )
     def resetResults(selectedDataset, skeletonVisible):
-        global localDCXCache
         if localDCXCache.ADTD_config.Dataset == selectedDataset:
             return skeletonVisible
         else:
@@ -249,10 +242,22 @@ def register_callbacks(app):
         State("main-content", "children")
     )
     def storeCurrentADTDTab(skeletonVisible, currADTDTab):
-        global localDCXCache
         localDCXCache.ADTDTab = currADTDTab
 
-def get_adtd_layout(applCheckEnabled, localDCXCache):
+def get_adtd_layout(applCheckEnabled):
+    from utils.global_cache import localDCXCache
+    # Robust None-check for cache and file
+    if getattr(localDCXCache, 'DeconomixFile', None) is None:
+        return dmc.Stack([
+            dmc.Alert(
+                title="No file loaded!",
+                color="red",
+                children=[
+                    "Please upload a file first before using the ADTD page."
+                ],
+                style={"marginTop": 40, "marginBottom": 40}
+            )
+        ])
 
     combobox_datasets_items = [
         {'value': 'train', 'label': "Training"},

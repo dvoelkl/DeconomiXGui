@@ -239,7 +239,6 @@ def register_callbacks(app):
     from utils.DeconomixFile import DeconomixFile
 
     def upload_deconomix_file_callback(content, filename, last_modified, dtd_was_disabled, adtd_was_disabled):
-        global localDCXCache
         showAlert = False
         if filename is None and localDCXCache.DeconomixFile is None:
             disabled_dtd = True
