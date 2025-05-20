@@ -25,6 +25,7 @@ import io
 import pandas as pd
 import scanpy as sc
 
+import configparser
 
 # Imports for Deconomix
 from utils.DeconomixFile import DeconomixFile
@@ -37,6 +38,10 @@ from scipy.stats import spearmanr
 from deconomix.utils import simulate_data, calculate_estimated_composition
 from deconomix.methods import DTD
 from utils.global_cache import localDCXCache
+
+import importlib
+import os
+import inspect
 
 #########################  #########################
 
@@ -56,29 +61,40 @@ logo_filename = "DeconomiX_Logo.png"
 
 ######################### PLUGIN-SYSTEM #########################
 
-from pages import DTD_page, ADTD_page, Uploading
+# Automatic plug-in discovery with .config evaluation
+PLUGINS = []
+PAGES_PATH = os.path.join(os.path.dirname(__file__), "pages")
+for fname in os.listdir(PAGES_PATH):
+    if fname.endswith(".py") and not fname.startswith("_"):
+        modname = fname[:-3]
+        module = importlib.import_module(f"pages.{modname}")
+        # Check if the module provides the required functions
+        if hasattr(module, "get_layout") and hasattr(module, "register_callbacks"):
+            # Read corresponding .config file
+            config_path = os.path.join(PAGES_PATH, f"{modname}.config")
+            config = {}
+            if os.path.exists(config_path):
+                with open(config_path, "r") as f:
+                    for line in f:
+                        if "=" in line:
+                            key, value = line.split("=", 1)
+                            config[key.strip()] = value.strip().strip('"')
+            # Fallbacks if values are missing (ENGLISH)
+            position = int(config.get("position", 999))
+            nav_id = config.get("id", f"nav-{modname.lower()}")
+            # Use English fallback titles and descriptions
+            title = config.get("title", modname.replace("_page", "").capitalize())
+            description = config.get("description", f"{title} plug-in")
+            PLUGINS.append({
+                "position": position,
+                "label": title,
+                "description": description,
+                "id": nav_id,
+                "module": module,
+            })
 
-PLUGINS = [
-    {
-        "label": "Load",
-        "description": "Load a DeconomiX file",
-        "id": "nav-load",
-        "module": Uploading,
-    },
-    {
-        "label": "DTD",
-        "description": "Run DTD",
-        "id": "nav-dtd",
-        "module": DTD_page,
-    },
-    {
-        "label": "ADTD",
-        "description": "Run ADTD",
-        "id": "nav-adtd",
-        "module": ADTD_page,
-    },
-    # Additional plug-ins can be added here
-]
+# Sort by position
+PLUGINS.sort(key=lambda x: x["position"])
 
 # Dynamic navigation
 nav_links = [
@@ -115,7 +131,7 @@ layout = dmc.AppShell(
             p="md",
         ),
         dmc.AppShellMain(id="main-content",
-                         children=Uploading.get_layout()),
+                         children=PLUGINS[0]["module"].get_layout()),
     ],
     header={"height": 60},
     navbar={
@@ -145,7 +161,7 @@ def display_plugin(*args):
     for plugin in PLUGINS:
         if plugin["id"] == ctx_id:
             return plugin["module"].get_layout()
-    return Uploading.get_layout()
+    return PLUGINS[0]["module"].get_layout()
 
 ### Callbacks Navigation ###
 @callback(

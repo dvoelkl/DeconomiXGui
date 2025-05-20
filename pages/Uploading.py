@@ -299,8 +299,8 @@ def register_callbacks(app):
         Input('upload-file', 'contents'),
         Input('upload-file', 'filename'),
         Input('upload-file', 'last_modified'),
-        State('nav-dtd', 'disabled'),
-        State('nav-adtd', 'disabled'),
+        State('nav-dtd_page', 'disabled'),
+        State('nav-adtd_page', 'disabled'),
         prevent_initial_call='initial_duplicate')
     def uploadDeconomixFile(content, filename, last_modified, dtd_was_disabled, adtd_was_disabled):
         file_properties_layout, disabled_dtd, disabled_adtd, showAlert = upload_deconomix_file_callback(content, filename, last_modified, dtd_was_disabled, adtd_was_disabled)
@@ -473,8 +473,8 @@ def register_callbacks(app):
     # Callback for navigation status (enable/disable DTD/ADTD)
     @app.callback(
         [
-            Output('nav-dtd', 'disabled', allow_duplicate=True),
-            Output('nav-adtd', 'disabled', allow_duplicate=True)
+            Output('nav-dtd_page', 'disabled', allow_duplicate=True),
+            Output('nav-adtd_page', 'disabled', allow_duplicate=True)
         ],
         [
             Input('upload-file-properties', 'children'),

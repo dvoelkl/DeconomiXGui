@@ -62,7 +62,7 @@ def register_callbacks(app):
         Output('dtd-res-corr', 'children', allow_duplicate=True),
         Output('dtd-res-mixtures', 'children', allow_duplicate=True),
         Output('dtd-res-markermap', 'children', allow_duplicate=True),
-        Output('nav-adtd', 'disabled', allow_duplicate=True),
+        Output('nav-adtd_page', 'disabled', allow_duplicate=True),
         Input('dtd-exec-overlay', 'visible'),
         State('dtd-par-check-ApplData', 'checked'),
         State('dtd-par-num-genes', 'value'),
@@ -226,7 +226,7 @@ def register_callbacks(app):
 
     @app.callback(
         Output("dtd-skeleton", "visible", allow_duplicate=True),
-        Input("nav-dtd", "n_clicks"),
+        Input("nav-dtd_page", "n_clicks"),
         prevent_initial_call=True
     )
     def show_dtd_skeleton_on_tab(n_clicks):
