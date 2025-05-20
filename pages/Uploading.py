@@ -12,6 +12,15 @@ from utils.global_cache import localDCXCache
 import base64, io
 import scanpy as sc
 import numpy as np
+import dash
+
+# Hilfsfunktionen für Indikator-Style und Pflichtfeld-Check
+
+def get_indicator_style(uploaded):
+    return {"display": "inline"} if uploaded else {"display": "none"}
+
+def all_required_fields_filled(*fields):
+    return all(fields)
 
 def get_upload_layout():
     upload_layout = dmc.Stack([
@@ -298,6 +307,21 @@ def register_callbacks(app):
         return modal_open
 
     @app.callback(
+        Output("import-anndata-modal", "opened", allow_duplicate=True),
+        [Input("anndata-trigger-import", "n_clicks"),
+         Input("anndata-cancel-btn", "n_clicks")],
+        [State("import-anndata-modal", "opened")],
+        prevent_initial_call=True
+    )
+    def toggle_anndata_modal(open_click, cancel_click, modal_open):
+        ctx_id = ctx.triggered_id
+        if ctx_id == "anndata-trigger-import":
+            return True
+        elif ctx_id == "anndata-cancel-btn":
+            return False
+        return modal_open
+
+    @app.callback(
         [Output("dcxconvert-indicator-x", "style"),
          Output("dcxconvert-indicator-train", "style"),
          Output("dcxconvert-indicator-test", "style"),
@@ -311,7 +335,12 @@ def register_callbacks(app):
          Input("dcxconvert-filename", "value")]
     )
     def update_dcxconvert_indicators(x, train, test, app_, author, filename):
-        return dcxconvert_update_indicators(x, train, test, app_, author, filename)
+        x_style = {"display": "inline"} if x else {"display": "none"}
+        train_style = {"display": "inline"} if train else {"display": "none"}
+        test_style = {"display": "inline"} if test else {"display": "none"}
+        app_style = {"display": "inline"} if app_ else {"display": "none"}
+        disabled = not (x and train and test and author and filename)
+        return x_style, train_style, test_style, app_style, disabled
 
     @app.callback(
         Output("dcxconvert-download", "data"),
@@ -331,7 +360,60 @@ def register_callbacks(app):
         prevent_initial_call=True
     )
     def dcxconvert_download(n_clicks, x, train, test, app_, author, desc, filename, appdesc, traindesc, testdesc):
-        return dcxconvert_download_callback(n_clicks, x, train, test, app_, author, desc, filename, appdesc, traindesc, testdesc)
+        if not (n_clicks and x and train and test and author and filename):
+            return dash.no_update, dash.no_update, "Please fill all required fields."
+        try:
+            deconomix_file = DeconomixFile.from_upload(
+                x, train, test, app_,
+                author=author,
+                description=desc,
+                filename=filename
+            )
+            deconomix_file.TrainDesc = traindesc or "Dataset used for Training"
+            deconomix_file.TestDesc = testdesc or "Dataset used for Testing"
+            deconomix_file.ApplicationDesc = appdesc or "Bulk data for Application"
+            b64str = deconomix_file.to_contents_string()
+            b64 = b64str.split(",", 1)[-1]
+            file_bytes = base64.b64decode(b64)
+            return dcc.send_bytes(lambda buf: buf.write(file_bytes), f"{filename}.dcx"), False, ""
+        except Exception as e:
+            return dash.no_update, dash.no_update, f"Error: {str(e)}"
+
+    @app.callback(
+        [Output("anndata-indicator-x", "style"),
+         Output("anndata-indicator-train", "style"),
+         Output("anndata-indicator-test", "style"),
+         Output("anndata-indicator-app", "style"),
+         Output("anndata-import-btn", "disabled")],
+        [Input("anndata-upload-x", "contents"),
+         Input("anndata-upload-train", "contents"),
+         Input("anndata-upload-test", "contents"),
+         Input("anndata-upload-app", "contents")],
+    )
+    def update_status(x_uploaded, train_uploaded, test_uploaded, app_uploaded):
+        x_style = {"display": "inline"} if x_uploaded else {"display": "none"}
+        train_style = {"display": "inline"} if train_uploaded else {"display": "none"}
+        test_style = {"display": "inline"} if test_uploaded else {"display": "none"}
+        app_style = {"display": "inline"} if app_uploaded else {"display": "none"}
+        import_disabled = not (x_uploaded and train_uploaded and test_uploaded)
+        return x_style, train_style, test_style, app_style, import_disabled
+
+    @app.callback(
+        Output('upload-file', 'contents'),
+        Output('upload-file', 'filename'),
+        Output("import-anndata-modal", "opened", allow_duplicate=True),
+        Input("anndata-import-btn", "n_clicks"),
+        State("anndata-upload-x", "contents"),
+        State("anndata-upload-train", "contents"),
+        State("anndata-upload-test", "contents"),
+        State("anndata-upload-app", "contents"),
+        prevent_initial_call=True
+    )
+    def ImportFromAnndata(n_clicks, X_binary, Train_binary, Test_binary, App_binary):
+        if not n_clicks:
+            return dash.no_update, dash.no_update, dash.no_update
+        dcx = DeconomixFile.from_AnnData(X_binary, Train_binary, Test_binary, App_binary, description="Imported from AnnData")
+        return dcx.to_contents_string(), 'ImportedFromAnnData', False
 
     @app.callback(
         Output('upload-modal-train', 'opened'),
@@ -342,8 +424,8 @@ def register_callbacks(app):
     )
     def showTrainDistribution(trainDistributionClicked, opened):
         distribution_plot = dmc.Text("Here should be a diagram")
-        if localDCXCache.DeconomixFile.Train is not None:
-            distribution_plot = get_distribution_plot(localDCXCache.DeconomixFile.Train)
+        if localDCXCache.DeconomiXFile.Train is not None:
+            distribution_plot = get_distribution_plot(localDCXCache.DeconomiXFile.Train)
         return not opened, distribution_plot
 
     @app.callback(
@@ -355,8 +437,8 @@ def register_callbacks(app):
     )
     def showTestDistribution(testDistributionClicked, opened):
         distribution_plot = dmc.Text("Here should be a diagram")
-        if localDCXCache.DeconomixFile.Test is not None:
-            distribution_plot = get_distribution_plot(localDCXCache.DeconomixFile.Test)
+        if localDCXCache.DeconomiXFile.Test is not None:
+            distribution_plot = get_distribution_plot(localDCXCache.DeconomiXFile.Test)
         return not opened, distribution_plot
 
     @app.callback(
