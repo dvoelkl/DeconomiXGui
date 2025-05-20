@@ -238,9 +238,22 @@ def get_dtd_layout(applCheckEnabled, geneCount):
     if geneCount == 0 and hasattr(localDCXCache, 'DeconomixFile') and localDCXCache.DeconomixFile is not None and hasattr(localDCXCache.DeconomixFile, 'X_mat') and localDCXCache.DeconomixFile.X_mat is not None:
         geneCount = localDCXCache.DeconomixFile.X_mat.shape[0]
 
+    skeleton_visible = localDCXCache.DTDmodel is None
+
+    # Prefill result components from cache if available
+    if localDCXCache.DTDmodel is not None:
+        res_loss = get_tab_dtd_loss(localDCXCache)
+        res_corr = get_tab_dtd_correlation(localDCXCache)
+        res_mixtures = get_tab_dtd_mixture(localDCXCache)
+        res_markermap = get_tab_dtd_markermap(localDCXCache)
+    else:
+        res_loss = None
+        res_corr = None
+        res_mixtures = None
+        res_markermap = None
+
     dtd_layout = dmc.Stack(
         [
-            # Loading
             dmc.LoadingOverlay(
                 visible=False,
                 id="dtd-exec-overlay",
@@ -287,7 +300,7 @@ def get_dtd_layout(applCheckEnabled, geneCount):
             # Results
             dmc.Skeleton(
                 id="dtd-skeleton",
-                visible=True,
+                visible=skeleton_visible,
                 animate=False,
                 children=[
                     dmc.Fieldset(
@@ -303,22 +316,22 @@ def get_dtd_layout(applCheckEnabled, geneCount):
                                 ),
                                 dmc.TabsPanel(value="loss",
                                               children=[
-                                                  html.Div("Loss function display", id="dtd-res-loss")
+                                                  html.Div(id="dtd-res-loss", children=res_loss)
                                               ]),
 
                                 dmc.TabsPanel(value="correlation",
                                               children=[
-                                                  html.Div("Correlation plots", id="dtd-res-corr")
+                                                  html.Div(id="dtd-res-corr", children=res_corr)
                                               ]),
 
                                 dmc.TabsPanel(value="markermap",
                                               children=[
-                                                  html.Div("Markermap", id="dtd-res-markermap")
+                                                  html.Div(id="dtd-res-markermap", children=res_markermap)
                                               ]),
 
                                 dmc.TabsPanel(value="mixtures",
                                               children=[
-                                                  html.Div("Estimated Mixture plots", id="dtd-res-mixtures")
+                                                  html.Div(id="dtd-res-mixtures", children=res_mixtures)
                                               ])
                             ],
                             color='blue',
