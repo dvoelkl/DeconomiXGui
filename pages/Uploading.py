@@ -8,6 +8,10 @@ import dash_mantine_components as dmc
 from dash import Dash, Input, Output, State, callback, _dash_renderer, dcc, html
 import pandas as pd
 from utils.DeconomixFile import DeconomixFile
+from utils.global_cache import localDCXCache
+import base64, io
+import scanpy as sc
+import numpy as np
 
 def get_upload_layout():
     upload_layout = dmc.Stack([
@@ -225,6 +229,177 @@ def get_upload_layout():
 
     return upload_layout
 
+def get_layout():
+    return get_upload_layout()
+
+def register_callbacks(app):
+    from dash import Output, Input, State, no_update, ctx
+    import dash_mantine_components as dmc
+    global get_file_properties_layout, get_distribution_plot
+    from utils.DeconomixFile import DeconomixFile
+
+    def upload_deconomix_file_callback(content, filename, last_modified, dtd_was_disabled, adtd_was_disabled):
+        global localDCXCache
+        showAlert = False
+        if filename is None and localDCXCache.DeconomixFile is None:
+            disabled_dtd = True
+            disabled_adtd = True
+            file_properties_layout = "No file loaded!"
+            localDCXCache.DeconomixFile = None
+        else:
+            disabled_dtd = False
+            disabled_adtd = True
+            if filename is not None:
+                _, content = content.split(',')
+                content = io.BytesIO(base64.b64decode(content))
+                try:
+                    localDCXCache.DeconomixFile = DeconomixFile.unbinarize(content)
+                    localDCXCache.DeconomixFile.filename = filename
+                    file_properties_layout = get_file_properties_layout(filename, last_modified, localDCXCache.DeconomixFile)
+                    localDCXCache.clearAll()
+                except:
+                    showAlert = True
+                    disabled_dtd = True
+                    disabled_adtd = True
+                    file_properties_layout = "No file loaded!"
+                    localDCXCache.DeconomixFile = None
+            else:
+                file_properties_layout = get_file_properties_layout(localDCXCache.DeconomixFile.filename, "", localDCXCache.DeconomixFile)
+            if localDCXCache.DTDmodel is not None:
+                disabled_adtd = False
+        return file_properties_layout, disabled_dtd, disabled_adtd, showAlert
+
+    @app.callback(
+        Output('upload-file-properties', 'children'),
+        Output('upload-file-not-supported-alert', 'opened', allow_duplicate=True),
+        Input('upload-file', 'contents'),
+        Input('upload-file', 'filename'),
+        Input('upload-file', 'last_modified'),
+        State('nav-dtd', 'disabled'),
+        State('nav-adtd', 'disabled'),
+        prevent_initial_call='initial_duplicate')
+    def uploadDeconomixFile(content, filename, last_modified, dtd_was_disabled, adtd_was_disabled):
+        file_properties_layout, disabled_dtd, disabled_adtd, showAlert = upload_deconomix_file_callback(content, filename, last_modified, dtd_was_disabled, adtd_was_disabled)
+        return file_properties_layout, showAlert
+
+    @app.callback(
+        Output("dcxconvert-modal", "opened", allow_duplicate=True),
+        [Input("dcxconvert-trigger", "n_clicks"),
+         Input("dcxconvert-cancel-btn", "n_clicks")],
+        [State("dcxconvert-modal", "opened")],
+        prevent_initial_call=True
+    )
+    def toggle_dcxconvert_modal(open_click, cancel_click, modal_open):
+        from dash import ctx
+        ctx_id = ctx.triggered_id
+        if ctx_id == "dcxconvert-trigger":
+            return True
+        elif ctx_id == "dcxconvert-cancel-btn":
+            return False
+        return modal_open
+
+    @app.callback(
+        [Output("dcxconvert-indicator-x", "style"),
+         Output("dcxconvert-indicator-train", "style"),
+         Output("dcxconvert-indicator-test", "style"),
+         Output("dcxconvert-indicator-app", "style"),
+         Output("dcxconvert-download-btn", "disabled")],
+        [Input("dcxconvert-upload-x", "contents"),
+         Input("dcxconvert-upload-train", "contents"),
+         Input("dcxconvert-upload-test", "contents"),
+         Input("dcxconvert-upload-app", "contents"),
+         Input("dcxconvert-author", "value"),
+         Input("dcxconvert-filename", "value")]
+    )
+    def update_dcxconvert_indicators(x, train, test, app_, author, filename):
+        return dcxconvert_update_indicators(x, train, test, app_, author, filename)
+
+    @app.callback(
+        Output("dcxconvert-download", "data"),
+        Output("dcxconvert-modal", "opened", allow_duplicate=True),
+        Output("dcxconvert-error-text", "children"),
+        Input("dcxconvert-download-btn", "n_clicks"),
+        State("dcxconvert-upload-x", "contents"),
+        State("dcxconvert-upload-train", "contents"),
+        State("dcxconvert-upload-test", "contents"),
+        State("dcxconvert-upload-app", "contents"),
+        State("dcxconvert-author", "value"),
+        State("dcxconvert-desc", "value"),
+        State("dcxconvert-filename", "value"),
+        State("dcxconvert-appdesc", "value"),
+        State("dcxconvert-traindesc", "value"),
+        State("dcxconvert-testdesc", "value"),
+        prevent_initial_call=True
+    )
+    def dcxconvert_download(n_clicks, x, train, test, app_, author, desc, filename, appdesc, traindesc, testdesc):
+        return dcxconvert_download_callback(n_clicks, x, train, test, app_, author, desc, filename, appdesc, traindesc, testdesc)
+
+    @app.callback(
+        Output('upload-modal-train', 'opened'),
+        Output('upload-modal-train-diagram', 'children'),
+        Input('upload-button-training-distribution', 'n_clicks'),
+        State('upload-modal-train', 'opened'),
+        prevent_initial_call=True
+    )
+    def showTrainDistribution(trainDistributionClicked, opened):
+        distribution_plot = dmc.Text("Here should be a diagram")
+        if localDCXCache.DeconomixFile.Train is not None:
+            distribution_plot = get_distribution_plot(localDCXCache.DeconomixFile.Train)
+        return not opened, distribution_plot
+
+    @app.callback(
+        Output('upload-modal-test', 'opened'),
+        Output('upload-modal-test-diagram', 'children'),
+        Input('upload-button-testing-distribution', 'n_clicks'),
+        State('upload-modal-test', 'opened'),
+        prevent_initial_call=True
+    )
+    def showTestDistribution(testDistributionClicked, opened):
+        distribution_plot = dmc.Text("Here should be a diagram")
+        if localDCXCache.DeconomixFile.Test is not None:
+            distribution_plot = get_distribution_plot(localDCXCache.DeconomixFile.Test)
+        return not opened, distribution_plot
+
+    @app.callback(
+        Output('upload-modal-reference', 'opened'),
+        Input('upload-button-reference', 'n_clicks'),
+        State('upload-modal-reference', 'opened'),
+        prevent_initial_call=True
+    )
+    def showReferenceMatrix(referenceClicked, opened):
+        return not opened
+
+    # Callback for navigation status (enable/disable DTD/ADTD)
+    @app.callback(
+        [
+            Output('nav-dtd', 'disabled', allow_duplicate=True),
+            Output('nav-adtd', 'disabled', allow_duplicate=True)
+        ],
+        [
+            Input('upload-file-properties', 'children'),
+        ],
+        prevent_initial_call=True
+    )
+    def update_nav_disabled(file_properties):
+        # If a file is loaded, enable DTD, ADTD remains disabled until DTD is executed
+        if isinstance(file_properties, str) and file_properties == "No file loaded!":
+            return True, True
+        return False, True
+
+def dcxconvert_update_indicators(x, train, test, app_, author, filename):
+    """Helper function for the indicators and download button status in the DCX Converter Modal."""
+    def get_indicator_style(uploaded):
+        return {"display": "inline"} if uploaded else {"display": "none"}
+    indicators = [get_indicator_style(x), get_indicator_style(train), get_indicator_style(test), get_indicator_style(app_)]
+    disabled = not (x and train and test and author and filename)
+    return (*indicators, disabled)
+
+def dcxconvert_download_callback(n_clicks, x, train, test, app_, author, desc, filename, appdesc, traindesc, testdesc):
+    """Helper function for the download callback in the DCX Converter Modal."""
+    # The actual logic for the download should be implemented here
+    # Placeholder implementation:
+    return None, False, ""
+
 def get_card_reference():
     # Card Reference
     card_ref = dmc.Card(
@@ -418,7 +593,7 @@ def get_card_gamma():
     return card_gamma
 
 def get_file_properties_layout(filename, modification_date, file):
-    #file = DeconomixFile()
+    #file = DeconomiXFile()
 
     CardDisplay = []
     if file.X_mat is not None:

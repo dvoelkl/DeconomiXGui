@@ -14,7 +14,220 @@ import dash_bio as dashbio
 from utils.DeconomixCache import DCXCache
 import numpy as np
 
+def get_layout(checkApplEnabled=True, n_genes=0):
+    return get_dtd_layout(checkApplEnabled, n_genes)
+
+def register_callbacks(app):
+    from dash import Output, Input, State, no_update, ctx
+    import dash_mantine_components as dmc
+    from utils.DeconomixFile import DeconomixFile
+    import numpy as np
+    from scipy.stats import spearmanr
+    import plotly.graph_objects as go
+    from pages.DTD_page import get_tab_dtd_loss, get_tab_dtd_correlation, get_tab_dtd_mixture, get_tab_dtd_markermap, get_correlation_dict, fill_combo_mixtures, get_markermap_plot
+    from deconomix.utils import simulate_data, calculate_estimated_composition
+    from deconomix.methods import DTD
+    from utils.global_cache import localDCXCache
+
+    @app.callback(
+        Output('dtd-exec-overlay', 'visible', allow_duplicate=True),
+        Output('dtd-skeleton', 'visible', allow_duplicate=True),
+        State('dtd-par-training-n-mix', 'value'),
+        State('dtd-par-training-n-cells-in-mix', 'value'),
+        State('dtd-par-test-n-mix', 'value'),
+        State('dtd-par-test-n-cells-in-mix', 'value'),
+        State('dtd-par-check-ApplData', 'checked'),
+        State('dtd-par-num-iter', 'value'),
+        Input('dtd-run', 'n_clicks'),
+        prevent_initial_call=True
+    )
+    def prepareDTD(train_n_mix, train_n_cells, test_n_mix, test_n_cell, fApplData, n_iter, n_clicks):
+        # Set DTD parameters and trigger overlay
+        if "dtd-run" == ctx.triggered_id:
+            localDCXCache.clearDTD()
+            localDCXCache.DTD_config.train_n_mixtures = train_n_mix
+            localDCXCache.DTD_config.train_n_cells = train_n_cells
+            localDCXCache.DTD_config.test_n_mixtures = test_n_mix
+            localDCXCache.DTD_config.test_n_cells = test_n_cell
+            localDCXCache.DTD_config.fRunOnAppl = fApplData
+            localDCXCache.DTD_config.nIter = n_iter
+            return True, True
+        else:
+            return False, no_update
+
+    @app.callback(
+        Output('dtd-exec-overlay', 'visible', allow_duplicate=True),
+        Output('dtd-skeleton', 'visible', allow_duplicate=True),
+        Output('dtd-res-loss', 'children', allow_duplicate=True),
+        Output('dtd-res-corr', 'children', allow_duplicate=True),
+        Output('dtd-res-mixtures', 'children', allow_duplicate=True),
+        Output('dtd-res-markermap', 'children', allow_duplicate=True),
+        Output('nav-adtd', 'disabled', allow_duplicate=True),
+        Input('dtd-exec-overlay', 'visible'),
+        State('dtd-par-check-ApplData', 'checked'),
+        State('dtd-par-num-genes', 'value'),
+        prevent_initial_call=True
+    )
+    def runDTD(exec_overlay_visible, runOnApplChecked, nGenes):
+        # Run DTD simulation and update all result tabs
+        if "dtd-exec-overlay" == ctx.triggered_id and exec_overlay_visible is True:
+            _, localDCXCache.DTD_Y_train, localDCXCache.DTD_C_train = simulate_data(localDCXCache.DeconomixFile.Train,
+                                                                                    localDCXCache.DTD_config.train_n_mixtures,
+                                                                                    localDCXCache.DTD_config.train_n_cells,
+                                                                                    n_genes=nGenes)
+            _, localDCXCache.DTD_Y_test, localDCXCache.DTD_C_test = simulate_data(localDCXCache.DeconomixFile.Test,
+                                                                                  localDCXCache.DTD_config.test_n_mixtures,
+                                                                                  localDCXCache.DTD_config.test_n_cells)
+            localDCXCache.DTD_Y_test = localDCXCache.DTD_Y_test.loc[localDCXCache.DTD_Y_train.index,:]
+            localDCXCache.DTDmodel = DTD(localDCXCache.DeconomixFile.X_mat.loc[localDCXCache.DTD_Y_train.index,:],
+                                         localDCXCache.DTD_Y_train,
+                                         localDCXCache.DTD_C_train)
+            localDCXCache.DTDmodel.run(localDCXCache.DTD_config.nIter)
+            localDCXCache.DTD_C_train_est = calculate_estimated_composition(localDCXCache.DeconomixFile.X_mat.loc[localDCXCache.DTD_Y_train.index,:],
+                                                                            localDCXCache.DTD_Y_train,
+                                                                            localDCXCache.DTDmodel.gamma)
+            localDCXCache.DTD_C_test_est = calculate_estimated_composition(localDCXCache.DeconomixFile.X_mat.loc[localDCXCache.DTD_Y_train.index,:],
+                                                                           localDCXCache.DTD_Y_test,
+                                                                           localDCXCache.DTDmodel.gamma)
+            if localDCXCache.DeconomixFile.Application is not None and runOnApplChecked is True:
+                localDCXCache.DTD_Y_appl = localDCXCache.DeconomixFile.Application.loc[localDCXCache.DTD_Y_train.index,:]
+                localDCXCache.DTD_C_appl_est = calculate_estimated_composition(localDCXCache.DeconomixFile.X_mat.loc[localDCXCache.DTD_Y_train.index,:],
+                                                                               localDCXCache.DTD_Y_appl,
+                                                                               localDCXCache.DTDmodel.gamma)
+            dtd_tab_loss = get_tab_dtd_loss(localDCXCache)
+            dtd_tab_corr = get_tab_dtd_correlation(localDCXCache)
+            dtd_tab_mix = get_tab_dtd_mixture(localDCXCache, runOnApplChecked)
+            dtd_tab_marker = get_tab_dtd_markermap(localDCXCache)
+            return False, False, dtd_tab_loss, dtd_tab_corr, dtd_tab_mix, dtd_tab_marker, False
+        else:
+            return no_update, no_update, no_update, no_update, no_update, no_update, no_update
+
+    @app.callback(
+        Output("tab-dtd-scatter-train", "data"),
+        Output("tab-dtd-scatter-test", "data"),
+        Output("tab-dtd-train-corr", "children"),
+        Output("tab-dtd-test-corr", "children"),
+        Input("tab-dtd-correlation-combo", "value"),
+        Input("tab-dtd-correlation-combo", "data")
+    )
+    def DTDselectCorrPlot(celltype, combobox_items):
+        # Update correlation plots and correlation values for selected cell type
+        idx = int(celltype[2:]) - 1
+        label = combobox_items[idx]['label']
+        data_train = get_correlation_dict(localDCXCache.DTD_C_train.loc[label],
+                                          localDCXCache.DTD_C_train_est.loc[label],
+                                          name='Training')
+        data_test = get_correlation_dict(localDCXCache.DTD_C_test.loc[label],
+                                         localDCXCache.DTD_C_test_est.loc[label],
+                                         name='Testing')
+        corr_train, _ = spearmanr(localDCXCache.DTD_C_train.loc[label],
+                                  localDCXCache.DTD_C_train_est.loc[label])
+        corr_val, _ = spearmanr(localDCXCache.DTD_C_test.loc[label],
+                                localDCXCache.DTD_C_test_est.loc[label])
+        return data_train, data_test, dmc.Text(f"Correlation: {np.round(corr_train, 4)}", ta="center"), dmc.Text(f"Correlation: {np.round(corr_val, 4)}", ta="center")
+
+    @app.callback(
+        Output("dtd-mix-mixture-combo", "data"),
+        Input("dtd-mix-dataset-combo", "value")
+    )
+    def DTDselectMixtureDataSet(dataset):
+        # Update mixture combobox based on selected dataset
+        if dataset == "train":
+            selected_data = localDCXCache.DTD_C_train_est
+        elif dataset == "test":
+            selected_data = localDCXCache.DTD_C_test_est
+        elif dataset == "appl":
+            selected_data = localDCXCache.DTD_C_appl_est
+        mixture_data = fill_combo_mixtures(selected_data)
+        return mixture_data
+
+    @app.callback(
+        Output("dtd-mix-pie-plot", "figure"),
+        Input("dtd-mix-dataset-combo", "value"),
+        Input("dtd-mix-mixture-combo", "value")
+    )
+    def UpdateDTDPiePlot(selectedDataset, selectedMixture):
+        # Update pie chart for selected mixture
+        if selectedDataset == "train":
+            selected_data = localDCXCache.DTD_C_train_est
+        elif selectedDataset == "test":
+            selected_data = localDCXCache.DTD_C_test_est
+        elif selectedDataset == "appl":
+            selected_data = localDCXCache.DTD_C_appl_est
+        mixture = selected_data.iloc[:, int(selectedMixture[1:]) - 1]
+        import matplotlib
+        colors = dict(matplotlib.colors.cnames.items())
+        hex_colors = tuple(colors.values())
+        mixture_data = [
+            {'name': mixture.index[i], "value": np.round(estimate, 4), "color": hex_colors[i + 25]} for i, estimate in enumerate(mixture)
+        ]
+        pie_plot = go.Figure(
+            data=[
+                go.Pie(
+                    labels=[item['name'] for item in mixture_data],
+                    values=[item['value'] for item in mixture_data],
+                    marker=dict(colors=[item['color'] for item in mixture_data]),
+                    textinfo="label+value",
+                    showlegend=False,
+                    hoverinfo="none",
+                    insidetextorientation="radial",
+                    textposition="outside"
+                )
+            ]
+        )
+        return pie_plot
+
+    @app.callback(
+        Output("dtd-mix-dataset-download", "data"),
+        Input("dtd-mix-dataset-button-download", "n_clicks"),
+        State("dtd-mix-dataset-combo", "value")
+    )
+    def DTDDownloadEstimate(n_clicks, selectedDataset):
+        # Download estimated composition for selected dataset
+        if "dtd-mix-dataset-button-download" == ctx.triggered_id:
+            if selectedDataset == "train":
+                selected_data = localDCXCache.DTD_C_train_est
+            elif selectedDataset == "test":
+                selected_data = localDCXCache.DTD_C_test_est
+            elif selectedDataset == "appl":
+                selected_data = localDCXCache.DTD_C_appl_est
+            return dcc.send_data_frame(selected_data.to_csv, f"{selectedDataset}_est.csv")
+        else:
+            return None
+
+    @app.callback(
+        Output("dtd-markermap-plot", "children"),
+        Input("dtd-markermap-n-genes", "value")
+    )
+    def UpdateMarkermapPlot(nGenes):
+        # Update markermap plot for selected number of genes
+        markerplot = get_markermap_plot(localDCXCache, nGenes)
+        return markerplot
+
+    @app.callback(
+        Output("dtd-gamma-download", "data"),
+        Input("dtd-gamma-button-download", "n_clicks")
+    )
+    def DownloadGamma(n_clicks):
+        # Download gamma vector
+        if "dtd-gamma-button-download" == ctx.triggered_id:
+            gamma = localDCXCache.DTDmodel.gamma.T.iloc[0]
+            return dcc.send_data_frame(gamma.to_csv, f"gamma.csv")
+        else:
+            return None
+
+    @app.callback(
+        Input('dtd-skeleton', 'visible'),
+        State("main-content", "children")
+    )
+    def storeCurrentDTDTab(skeletonVisible, currDTDTab):
+        # Store current DTD tab in cache
+        localDCXCache.DTDTab = currDTDTab
+
 def get_dtd_layout(applCheckEnabled, geneCount):
+    from utils.global_cache import localDCXCache
+    if geneCount == 0 and hasattr(localDCXCache, 'DeconomixFile') and localDCXCache.DeconomixFile is not None and hasattr(localDCXCache.DeconomixFile, 'X_mat') and localDCXCache.DeconomixFile.X_mat is not None:
+        geneCount = localDCXCache.DeconomixFile.X_mat.shape[0]
 
     dtd_layout = dmc.Stack(
         [
