@@ -8,13 +8,13 @@ import dash_mantine_components as dmc
 from dash import Dash, Input, Output, State, callback, _dash_renderer, dcc, html
 import pandas as pd
 from utils.DeconomixFile import DeconomixFile
-from utils.global_cache import localDCXCache
+from utils.session_cache_manager import get_session_cache
 import base64, io
 import scanpy as sc
 import numpy as np
 import dash
 
-# Hilfsfunktionen für Indikator-Style und Pflichtfeld-Check
+# Helper functions for indicator style and required field check
 
 def get_indicator_style(uploaded):
     return {"display": "inline"} if uploaded else {"display": "none"}
@@ -22,7 +22,7 @@ def get_indicator_style(uploaded):
 def all_required_fields_filled(*fields):
     return all(fields)
 
-# --- Hilfsfunktion für Upload-Parsing (aus DeconomixApp.py migriert) ---
+# --- Helper function for upload parsing (migrated from DeconomixApp.py) ---
 def decode_input(content):
     if content is None:
         return None
@@ -263,33 +263,39 @@ def register_callbacks(app):
     global get_file_properties_layout, get_distribution_plot
     from utils.DeconomixFile import DeconomixFile
 
-    def upload_deconomix_file_callback(content, filename, last_modified, dtd_was_disabled, adtd_was_disabled):
+    def upload_deconomix_file_callback(content, filename, last_modified, dtd_was_disabled, adtd_was_disabled, session_id):
+        cache = get_session_cache(session_id)
         showAlert = False
-        if filename is None and localDCXCache.DeconomixFile is None:
+        if cache is None:
             disabled_dtd = True
             disabled_adtd = True
             file_properties_layout = "No file loaded!"
-            localDCXCache.DeconomixFile = None
+            return file_properties_layout, disabled_dtd, disabled_adtd, showAlert
+        if filename is None and getattr(cache, 'DeconomixFile', None) is None:
+            disabled_dtd = True
+            disabled_adtd = True
+            file_properties_layout = "No file loaded!"
+            cache.DeconomixFile = None
         else:
             disabled_dtd = False
             disabled_adtd = True
             if filename is not None:
-                _, content = content.split(',')
-                content = io.BytesIO(base64.b64decode(content))
                 try:
-                    localDCXCache.DeconomixFile = DeconomixFile.unbinarize(content)
-                    localDCXCache.DeconomixFile.filename = filename
-                    file_properties_layout = get_file_properties_layout(filename, last_modified, localDCXCache.DeconomixFile)
-                    localDCXCache.clearAll()
-                except:
+                    _, content = content.split(',')
+                    content = io.BytesIO(base64.b64decode(content))
+                    cache.DeconomixFile = DeconomixFile.unbinarize(content)
+                    cache.DeconomixFile.filename = filename
+                    file_properties_layout = get_file_properties_layout(filename, last_modified, cache.DeconomixFile)
+                    cache.clearAll()
+                except Exception as e:
                     showAlert = True
                     disabled_dtd = True
                     disabled_adtd = True
                     file_properties_layout = "No file loaded!"
-                    localDCXCache.DeconomixFile = None
+                    cache.DeconomixFile = None
             else:
-                file_properties_layout = get_file_properties_layout(localDCXCache.DeconomixFile.filename, "", localDCXCache.DeconomixFile)
-            if localDCXCache.DTDmodel is not None:
+                file_properties_layout = get_file_properties_layout(cache.DeconomixFile.filename, "", cache.DeconomixFile)
+            if getattr(cache, 'DTDmodel', None) is not None:
                 disabled_adtd = False
         return file_properties_layout, disabled_dtd, disabled_adtd, showAlert
 
@@ -301,19 +307,21 @@ def register_callbacks(app):
         Input('upload-file', 'last_modified'),
         State('nav-dtd_page', 'disabled'),
         State('nav-adtd_page', 'disabled'),
+        State('session-id', 'data'),
         prevent_initial_call='initial_duplicate')
-    def uploadDeconomixFile(content, filename, last_modified, dtd_was_disabled, adtd_was_disabled):
-        file_properties_layout, disabled_dtd, disabled_adtd, showAlert = upload_deconomix_file_callback(content, filename, last_modified, dtd_was_disabled, adtd_was_disabled)
+    def uploadDeconomixFile(content, filename, last_modified, dtd_was_disabled, adtd_was_disabled, session_id):
+        file_properties_layout, disabled_dtd, disabled_adtd, showAlert = upload_deconomix_file_callback(content, filename, last_modified, dtd_was_disabled, adtd_was_disabled, session_id)
         return file_properties_layout, showAlert
 
     @app.callback(
         Output("dcxconvert-modal", "opened", allow_duplicate=True),
         [Input("dcxconvert-trigger", "n_clicks"),
          Input("dcxconvert-cancel-btn", "n_clicks")],
-        [State("dcxconvert-modal", "opened")],
+        [State("dcxconvert-modal", "opened"),
+         State('session-id', 'data')],
         prevent_initial_call=True
     )
-    def toggle_dcxconvert_modal(open_click, cancel_click, modal_open):
+    def toggle_dcxconvert_modal(open_click, cancel_click, modal_open, session_id):
         from dash import ctx
         ctx_id = ctx.triggered_id
         if ctx_id == "dcxconvert-trigger":
@@ -326,10 +334,11 @@ def register_callbacks(app):
         Output("import-anndata-modal", "opened", allow_duplicate=True),
         [Input("anndata-trigger-import", "n_clicks"),
          Input("anndata-cancel-btn", "n_clicks")],
-        [State("import-anndata-modal", "opened")],
+        [State("import-anndata-modal", "opened"),
+         State('session-id', 'data')],
         prevent_initial_call=True
     )
-    def toggle_anndata_modal(open_click, cancel_click, modal_open):
+    def toggle_anndata_modal(open_click, cancel_click, modal_open, session_id):
         ctx_id = ctx.triggered_id
         if ctx_id == "anndata-trigger-import":
             return True
@@ -348,9 +357,10 @@ def register_callbacks(app):
          Input("dcxconvert-upload-test", "contents"),
          Input("dcxconvert-upload-app", "contents"),
          Input("dcxconvert-author", "value"),
-         Input("dcxconvert-filename", "value")]
+         Input("dcxconvert-filename", "value"),
+         State('session-id', 'data')]
     )
-    def update_dcxconvert_indicators(x, train, test, app_, author, filename):
+    def update_dcxconvert_indicators(x, train, test, app_, author, filename, session_id):
         x_style = {"display": "inline"} if x else {"display": "none"}
         train_style = {"display": "inline"} if train else {"display": "none"}
         test_style = {"display": "inline"} if test else {"display": "none"}
@@ -373,13 +383,14 @@ def register_callbacks(app):
         State("dcxconvert-appdesc", "value"),
         State("dcxconvert-traindesc", "value"),
         State("dcxconvert-testdesc", "value"),
+        State('session-id', 'data'),
         prevent_initial_call=True
     )
-    def dcxconvert_download(n_clicks, x, train, test, app_, author, desc, filename, appdesc, traindesc, testdesc):
+    def dcxconvert_download(n_clicks, x, train, test, app_, author, desc, filename, appdesc, traindesc, testdesc, session_id):
         if not (n_clicks and x and train and test and author and filename):
             return dash.no_update, dash.no_update, "Please fill all required fields."
         try:
-            # Nutze decode_input für alle Uploads (AnnData oder CSV)
+            # Use decode_input for all uploads (AnnData or CSV)
             deconomix_file = DeconomixFile(
                 X_mat=decode_input(x),
                 Train=decode_input(train),
@@ -392,6 +403,8 @@ def register_callbacks(app):
             deconomix_file.TrainDesc = traindesc or "Dataset used for Training"
             deconomix_file.TestDesc = testdesc or "Dataset used for Testing"
             deconomix_file.ApplicationDesc = appdesc or "Bulk data for Application"
+            cache = get_session_cache(session_id)
+            cache.DeconomixFile = deconomix_file
             b64str = deconomix_file.to_contents_string()
             b64 = b64str.split(",", 1)[-1]
             file_bytes = base64.b64decode(b64)
@@ -408,9 +421,10 @@ def register_callbacks(app):
         [Input("anndata-upload-x", "contents"),
          Input("anndata-upload-train", "contents"),
          Input("anndata-upload-test", "contents"),
-         Input("anndata-upload-app", "contents")],
+         Input("anndata-upload-app", "contents"),
+         State('session-id', 'data')],
     )
-    def update_status(x_uploaded, train_uploaded, test_uploaded, app_uploaded):
+    def update_status(x_uploaded, train_uploaded, test_uploaded, app_uploaded, session_id):
         x_style = {"display": "inline"} if x_uploaded else {"display": "none"}
         train_style = {"display": "inline"} if train_uploaded else {"display": "none"}
         test_style = {"display": "inline"} if test_uploaded else {"display": "none"}
@@ -427,12 +441,15 @@ def register_callbacks(app):
         State("anndata-upload-train", "contents"),
         State("anndata-upload-test", "contents"),
         State("anndata-upload-app", "contents"),
+        State('session-id', 'data'),
         prevent_initial_call=True
     )
-    def ImportFromAnndata(n_clicks, X_binary, Train_binary, Test_binary, App_binary):
+    def ImportFromAnndata(n_clicks, X_binary, Train_binary, Test_binary, App_binary, session_id):
         if not n_clicks:
             return dash.no_update, dash.no_update, dash.no_update
+        cache = get_session_cache(session_id)
         dcx = DeconomixFile.from_AnnData(X_binary, Train_binary, Test_binary, App_binary, description="Imported from AnnData")
+        cache.DeconomixFile = dcx
         return dcx.to_contents_string(), 'ImportedFromAnnData', False
 
     @app.callback(
@@ -440,12 +457,14 @@ def register_callbacks(app):
         Output('upload-modal-train-diagram', 'children'),
         Input('upload-button-training-distribution', 'n_clicks'),
         State('upload-modal-train', 'opened'),
+        State('session-id', 'data'),
         prevent_initial_call=True
     )
-    def showTrainDistribution(trainDistributionClicked, opened):
+    def showTrainDistribution(trainDistributionClicked, opened, session_id):
+        cache = get_session_cache(session_id)
         distribution_plot = dmc.Text("Here should be a diagram")
-        if localDCXCache.DeconomixFile.Train is not None:
-            distribution_plot = get_distribution_plot(localDCXCache.DeconomixFile.Train)
+        if cache.DeconomixFile.Train is not None:
+            distribution_plot = get_distribution_plot(cache.DeconomixFile.Train)
         return not opened, distribution_plot
 
     @app.callback(
@@ -453,21 +472,24 @@ def register_callbacks(app):
         Output('upload-modal-test-diagram', 'children'),
         Input('upload-button-testing-distribution', 'n_clicks'),
         State('upload-modal-test', 'opened'),
+        State('session-id', 'data'),
         prevent_initial_call=True
     )
-    def showTestDistribution(testDistributionClicked, opened):
+    def showTestDistribution(testDistributionClicked, opened, session_id):
+        cache = get_session_cache(session_id)
         distribution_plot = dmc.Text("Here should be a diagram")
-        if localDCXCache.DeconomixFile.Test is not None:
-            distribution_plot = get_distribution_plot(localDCXCache.DeconomixFile.Test)
+        if cache.DeconomixFile.Test is not None:
+            distribution_plot = get_distribution_plot(cache.DeconomixFile.Test)
         return not opened, distribution_plot
 
     @app.callback(
         Output('upload-modal-reference', 'opened'),
         Input('upload-button-reference', 'n_clicks'),
         State('upload-modal-reference', 'opened'),
+        State('session-id', 'data'),
         prevent_initial_call=True
     )
-    def showReferenceMatrix(referenceClicked, opened):
+    def showReferenceMatrix(referenceClicked, opened, session_id):
         return not opened
 
     # Callback for navigation status (enable/disable DTD/ADTD)
@@ -478,10 +500,11 @@ def register_callbacks(app):
         ],
         [
             Input('upload-file-properties', 'children'),
+            State('session-id', 'data')
         ],
         prevent_initial_call=True
     )
-    def update_nav_disabled(file_properties):
+    def update_nav_disabled(file_properties, session_id):
         # If a file is loaded, enable DTD, ADTD remains disabled until DTD is executed
         if isinstance(file_properties, str) and file_properties == "No file loaded!":
             return True, True
@@ -754,23 +777,31 @@ def get_file_properties_layout(filename, modification_date, file):
     return file_properties_layout
 
 def get_distribution_plot(scData):
+    """
+    Returns a simple bar plot of cell type distribution using Plotly.
+    scData: pandas DataFrame with columns as cell types or a Series with cell type labels.
+    """
+    import plotly.express as px
+    import dash_mantine_components as dmc
+    import dash
+    import pandas as pd
+    # If scData is a DataFrame, try to infer cell type labels from columns or index
+    if isinstance(scData, pd.DataFrame):
+        # Try to use columns as cell types if they are categorical
+        if hasattr(scData, 'columns') and hasattr(scData.columns, 'value_counts'):
+            celltype_counts = scData.columns.value_counts()
+        else:
+            # Fallback: count unique values in first column
+            celltype_counts = scData.iloc[:,0].value_counts()
+    elif isinstance(scData, pd.Series):
+        celltype_counts = scData.value_counts()
+    else:
+        return dmc.Text("Invalid data for distribution plot.")
 
-    n_celltypes = scData.columns.value_counts()
-    data = []
-
-    for celltype in n_celltypes.index:
-        celltype_to_append = {"celltype": celltype, "count": n_celltypes[celltype]}
-        data.append(celltype_to_append)
-
-
-    distribution_plot = dmc.BarChart(
-            h=300,
-            dataKey="celltype",
-            data=data,
-            type="stacked",
-            series=[
-                {"name": "count", "color": "blue.6"}
-            ],
-        )
-
-    return distribution_plot
+    fig = px.bar(
+        x=celltype_counts.index,
+        y=celltype_counts.values,
+        labels={'x': 'Cell Type', 'y': 'Count'},
+        title='Cell Type Distribution'
+    )
+    return dcc.Graph(figure=fig)

@@ -37,16 +37,18 @@ from scipy.stats import spearmanr
 # Import from Deconomix
 from deconomix.utils import simulate_data, calculate_estimated_composition
 from deconomix.methods import DTD
-from utils.global_cache import localDCXCache
+from utils.session_cache_manager import get_session_cache, session_manager
 
 import importlib
 import os
 import inspect
+import uuid
 
 #########################  #########################
 
 ######################### GLOBALS #########################
-# localDCXCache is now imported from utils.global_cache
+# Session-based cache logic
+# session_cache = get_session_cache()  # REMOVED: No global session cache in multi-session architecture
 
 #########################  #########################
 
@@ -137,6 +139,7 @@ if PLUGIN_ERRORS:
 
 layout = dmc.AppShell(
     notification_area + [
+        dcc.Store(id="session-id", data=str(uuid.uuid4())),  # Defaultwert direkt beim Start!
         dmc.AppShellHeader(
             dmc.Group(
                 [
@@ -188,14 +191,16 @@ for plugin in PLUGINS:
 @callback(
     Output("main-content", "children", allow_duplicate=True),
     [Input(plugin["id"], "n_clicks") for plugin in PLUGINS],
+    State("session-id", "data"),
     prevent_initial_call=True,
 )
 def display_plugin(*args):
     ctx_id = ctx.triggered_id
+    session_id = args[-1]  # session_id from dcc.Store
     for plugin in PLUGINS:
         if plugin["id"] == ctx_id:
-            return plugin["module"].get_layout()
-    return PLUGINS[0]["module"].get_layout()
+            return plugin["module"].get_layout(session_id)
+    return PLUGINS[0]["module"].get_layout(session_id)
 
 ### Callbacks Navigation ###
 @callback(
@@ -212,6 +217,17 @@ def toggle_navbar(mobile_opened, desktop_opened, navbar):
     }
     return navbar
 
+# Callback: Generate session-id if not set
+@callback(
+    Output('session-id', 'data'),
+    Input('session-id', 'data'),
+    prevent_initial_call=True
+)
+def ensure_session_id(session_id):
+    if not session_id:
+        new_id = str(uuid.uuid4())
+        return new_id
+    return session_id
 
 ######################### HELPER FUNCTIONS #########################
 

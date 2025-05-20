@@ -13,11 +13,11 @@ import plotly.graph_objects as go
 import numpy as np
 import matplotlib
 from matplotlib.colors import CenteredNorm
-from utils.global_cache import localDCXCache
+from utils.session_cache_manager import get_session_cache
 
-def get_layout(checkApplEnabled=True):
-    from utils.global_cache import localDCXCache
-    return get_adtd_layout(checkApplEnabled)
+def get_layout(session_id, checkApplEnabled=True):
+    cache = get_session_cache(session_id)
+    return get_adtd_layout(session_id, checkApplEnabled)
 
 def register_callbacks(app):
     from dash import Output, Input, State, no_update, ctx
@@ -32,9 +32,11 @@ def register_callbacks(app):
     @app.callback(
         Output('adtd-par-lambda1', 'disabled'),
         Input('adtd-par-check-Cstatic', 'checked'),
+        State('session-id', 'data'),
         prevent_initial_call=True
     )
-    def updateLambda1Input(CstaticChecked):
+    def updateLambda1Input(CstaticChecked, session_id):
+        cache = get_session_cache(session_id)
         if CstaticChecked: return True
         else: return False
 
@@ -42,9 +44,11 @@ def register_callbacks(app):
     @app.callback(
         Output('adtd-par-lambda2', 'disabled'),
         Input('adtd-par-check-Deltastatic', 'checked'),
+        State('session-id', 'data'),
         prevent_initial_call=True
     )
-    def updateLambda2Input(DeltastaticChecked):
+    def updateLambda2Input(DeltastaticChecked, session_id):
+        cache = get_session_cache(session_id)
         if DeltastaticChecked: return True
         else: return False
 
@@ -63,30 +67,32 @@ def register_callbacks(app):
         State("adtd-dataset-combo", "value"),
         State('adtd-tab-gr', 'disabled'),
         State('adtd-tab-mix', 'disabled'),
+        State('session-id', 'data'),
         running=[(Output("adtd-skeleton", "visible"), True, False),
                  (Output("adtd-exec-overlay", "visible"), True, False)],
         prevent_initial_call=True
     )
-    def runADTDHPS(n_clicks, lambda_min, lambda_max, npoints, dataset, gr_disabled, mix_disabled):
-        localDCXCache.ADTD_config.lambda2min = lambda_min
-        localDCXCache.ADTD_config.lambda2max = lambda_max
-        localDCXCache.ADTD_config.nPoints = npoints
-        localDCXCache.ADTD_config.Dataset = dataset
+    def runADTDHPS(n_clicks, lambda_min, lambda_max, npoints, dataset, gr_disabled, mix_disabled, session_id):
+        cache = get_session_cache(session_id)
+        cache.ADTD_config.lambda2min = lambda_min
+        cache.ADTD_config.lambda2max = lambda_max
+        cache.ADTD_config.nPoints = npoints
+        cache.ADTD_config.Dataset = dataset
         if dataset == 'train':
-            Y_hps = localDCXCache.DTD_Y_train
+            Y_hps = cache.DTD_Y_train
         elif dataset == 'appl':
-            Y_hps = localDCXCache.DeconomixFile.Application.loc[localDCXCache.DTDmodel.gamma.index,:]
+            Y_hps = cache.DeconomixFile.Application.loc[cache.DTDmodel.gamma.index,:]
         else:
-            Y_hps = localDCXCache.DTD_Y_test
-        localDCXCache.ADTD_HPS_model = deconomix.methods.HPS(localDCXCache.DeconomixFile.X_mat.loc[Y_hps.index,:],
-                                                             Y_hps,
-                                                             localDCXCache.DTDmodel.gamma,
-                                                             lambda_min=lambda_min,
-                                                             lambda_max=lambda_max,
-                                                             n_points=npoints)
-        localDCXCache.ADTD_HPS_model.run()
-        fig = getHPSPlot(localDCXCache)
-        optimalLambda2 = localDCXCache.ADTD_HPS_model.lambda_max_gradient
+            Y_hps = cache.DTD_Y_test
+        cache.ADTD_HPS_model = deconomix.methods.HPS(cache.DeconomixFile.X_mat.loc[Y_hps.index,:],
+                                                     Y_hps,
+                                                     cache.DTDmodel.gamma,
+                                                     lambda_min=lambda_min,
+                                                     lambda_max=lambda_max,
+                                                     n_points=npoints)
+        cache.ADTD_HPS_model.run()
+        fig = getHPSPlot(cache)
+        optimalLambda2 = cache.ADTD_HPS_model.lambda_max_gradient
         return dcc.Graph(figure=fig), 'hps', False, True, True, optimalLambda2
 
     # Callback for running ADTD
@@ -107,59 +113,59 @@ def register_callbacks(app):
         State('adtd-tab-hps', 'disabled'),
         State('adtd-tab-gr', 'disabled'),
         State('adtd-tab-mix', 'disabled'),
+        State('session-id', 'data'),
         running=[(Output("adtd-skeleton", "visible"), True, False),
                  (Output("adtd-exec-overlay", "visible"), True, False)],
         prevent_initial_call=True
     )
-    def runADTD(n_clicks, Cstatic, Deltastatic, lambda1, lambda2, dataset, nIter, hps_disabled, gr_disabled, mix_disabled):
-        # Prüfe, ob Ergebnis bereits im Cache liegt
-        cached = localDCXCache.get_adtd_result(dataset, lambda1, lambda2, nIter, Cstatic, Deltastatic)
+    def runADTD(n_clicks, Cstatic, Deltastatic, lambda1, lambda2, dataset, nIter, hps_disabled, gr_disabled, mix_disabled, session_id):
+        cache = get_session_cache(session_id)
+        cached = cache.get_adtd_result(dataset, lambda1, lambda2, nIter, Cstatic, Deltastatic)
         if cached is not None:
             return cached['tab_mixture'], cached['tab_gr'], 'mixtures', hps_disabled, Deltastatic, False
-        previousDataset = localDCXCache.ADTD_config.Dataset
-        localDCXCache.ADTD_config.Cstatic = Cstatic
-        localDCXCache.ADTD_config.Deltastatic = Deltastatic
-        localDCXCache.ADTD_config.lambda1 = lambda1
-        localDCXCache.ADTD_config.lambda2 = lambda2
-        localDCXCache.ADTD_config.Dataset = dataset
-        localDCXCache.ADTD_config.nIter = nIter
+        previousDataset = cache.ADTD_config.Dataset
+        cache.ADTD_config.Cstatic = Cstatic
+        cache.ADTD_config.Deltastatic = Deltastatic
+        cache.ADTD_config.lambda1 = lambda1
+        cache.ADTD_config.lambda2 = lambda2
+        cache.ADTD_config.Dataset = dataset
+        cache.ADTD_config.nIter = nIter
         if dataset == 'train':
-            Y_adtd = localDCXCache.DTD_Y_train
+            Y_adtd = cache.DTD_Y_train
         elif dataset == 'appl':
-            Y_adtd = localDCXCache.DeconomixFile.Application.loc[localDCXCache.DTDmodel.gamma.index,:]
+            Y_adtd = cache.DeconomixFile.Application.loc[cache.DTDmodel.gamma.index,:]
         else:
-            Y_adtd = localDCXCache.DTD_Y_test
+            Y_adtd = cache.DTD_Y_test
         if not hps_disabled \
-                and localDCXCache.ADTD_config.Dataset == previousDataset \
-                and localDCXCache.ADTD_HPS_model is not None \
-                and lambda2 == localDCXCache.ADTD_HPS_model.lambda_max_gradient:
+                and cache.ADTD_config.Dataset == previousDataset \
+                and cache.ADTD_HPS_model is not None \
+                and lambda2 == cache.ADTD_HPS_model.lambda_max_gradient:
             gamma = 1 / Y_adtd.shape[1] * np.ones(Y_adtd.shape[0]) / (Y_adtd.mean(axis=1))**2
         else:
-            gamma = localDCXCache.DTDmodel.gamma
-        localDCXCache.ADTDmodel = deconomix.methods.ADTD(localDCXCache.DeconomixFile.X_mat.loc[Y_adtd.index,:],
-                                                         Y_adtd,
-                                                         gamma,
-                                                         lambda1,
-                                                         lambda2,
-                                                         nIter,
-                                                         C_static=Cstatic,
-                                                         Delta_static=Deltastatic)
-        localDCXCache.ADTDmodel.run()
-        tab_mixture = get_tab_adtd_mixture(localDCXCache, localDCXCache.ADTDmodel.C_est, localDCXCache.ADTDmodel.c_est)
+            gamma = cache.DTDmodel.gamma
+        cache.ADTDmodel = deconomix.methods.ADTD(cache.DeconomixFile.X_mat.loc[Y_adtd.index,:],
+                                                 Y_adtd,
+                                                 gamma,
+                                                 lambda1,
+                                                 lambda2,
+                                                 nIter,
+                                                 C_static=Cstatic,
+                                                 Delta_static=Deltastatic)
+        cache.ADTDmodel.run()
+        tab_mixture = get_tab_adtd_mixture(cache, cache.ADTDmodel.C_est, cache.ADTDmodel.c_est)
         if not Deltastatic:
-            tab_gr = get_tab_adtd_geneRegulation(localDCXCache, dataset)
+            tab_gr = get_tab_adtd_geneRegulation(cache, dataset)
         else:
             tab_gr = html.Div("Something went wrong, you shouldn't see this!")
-        # Speichere Ergebnis im Cache
-        localDCXCache.set_adtd_result(dataset, lambda1, lambda2, nIter, Cstatic, Deltastatic, {
+        cache.set_adtd_result(dataset, lambda1, lambda2, nIter, Cstatic, Deltastatic, {
             'tab_mixture': tab_mixture,
             'tab_gr': tab_gr,
-            'C_est': localDCXCache.ADTDmodel.C_est.copy(),
-            'c_est': localDCXCache.ADTDmodel.c_est.copy()
+            'C_est': cache.ADTDmodel.C_est.copy(),
+            'c_est': cache.ADTDmodel.c_est.copy()
         })
         return tab_mixture, tab_gr, 'mixtures', hps_disabled, Deltastatic, False
 
-    # Callback für Skeleton-Handling beim Dataset-Wechsel
+    # Callback for Skeleton handling when dataset changes
     @app.callback(
         Output("adtd-skeleton", "visible"),
         Output('adtd-res-mixtures', 'children', allow_duplicate=True),
@@ -177,12 +183,13 @@ def register_callbacks(app):
         State('adtd-tab-hps', 'disabled'),
         State('adtd-tab-gr', 'disabled'),
         State('adtd-tab-mix', 'disabled'),
+        State('session-id', 'data'),
         prevent_initial_call=True
     )
-    def restoreADTDResultsOnDatasetChange(dataset, Cstatic, Deltastatic, lambda1, lambda2, nIter, hps_disabled, gr_disabled, mix_disabled):
-        # Setze das aktuelle Dataset im Cache, damit der Mechanismus konsistent bleibt
-        localDCXCache.ADTD_config.Dataset = dataset
-        cached = localDCXCache.get_adtd_result(dataset, lambda1, lambda2, nIter, Cstatic, Deltastatic)
+    def restoreADTDResultsOnDatasetChange(dataset, Cstatic, Deltastatic, lambda1, lambda2, nIter, hps_disabled, gr_disabled, mix_disabled, session_id):
+        cache = get_session_cache(session_id)
+        cache.ADTD_config.Dataset = dataset
+        cached = cache.get_adtd_result(dataset, lambda1, lambda2, nIter, Cstatic, Deltastatic)
         if cached is not None:
             return False, cached['tab_mixture'], cached['tab_gr'], 'mixtures', hps_disabled, Deltastatic, False
         else:
@@ -198,11 +205,12 @@ def register_callbacks(app):
         State('adtd-par-lambda1', 'value'),
         State('adtd-par-lambda2', 'value'),
         State("adtd-par-iterations", "value"),
+        State('session-id', 'data'),
         prevent_initial_call=True
     )
-    def UpdateADTDPiePlot(selectedMixture, dataset, Cstatic, Deltastatic, lambda1, lambda2, nIter):
-        # Hole die korrekten Ergebnisse aus dem Cache für das aktuell gewählte Dataset und die aktuelle Parametrisierung
-        cached = localDCXCache.get_adtd_result(dataset, lambda1, lambda2, nIter, Cstatic, Deltastatic)
+    def UpdateADTDPiePlot(selectedMixture, dataset, Cstatic, Deltastatic, lambda1, lambda2, nIter, session_id):
+        cache = get_session_cache(session_id)
+        cached = cache.get_adtd_result(dataset, lambda1, lambda2, nIter, Cstatic, Deltastatic)
         if cached is not None and 'C_est' in cached and 'c_est' in cached:
             C_est = cached['C_est'].copy()
             c_est = cached['c_est']
@@ -230,19 +238,20 @@ def register_callbacks(app):
                 ]
             )
             return pie_plot
-        # Fallback: leeres Chart
         return go.Figure()
 
     # Callback for downloading ADTD estimated composition
     @app.callback(
         Output("adtd-mix-dataset-download", "data"),
         Input("adtd-mix-dataset-button-download", "n_clicks"),
-        State("adtd-dataset-combo", "value")
+        State("adtd-dataset-combo", "value"),
+        State('session-id', 'data')
     )
-    def ADTDDownloadEstimate(n_clicks, selectedDataset):
+    def ADTDDownloadEstimate(n_clicks, selectedDataset, session_id):
+        cache = get_session_cache(session_id)
         if "adtd-mix-dataset-button-download" == ctx.triggered_id:
-            selected_data = localDCXCache.ADTDmodel.C_est.copy()
-            selected_data.loc['hidden'] = localDCXCache.ADTDmodel.c_est.iloc[0]
+            selected_data = cache.ADTDmodel.C_est.copy()
+            selected_data.loc['hidden'] = cache.ADTDmodel.c_est.iloc[0]
             return dcc.send_data_frame(selected_data.to_csv, f"{selectedDataset}_ADTD_est.csv")
         else:
             return None
@@ -252,26 +261,30 @@ def register_callbacks(app):
         Output("adtd-gr-selected-genes", "error"),
         Output("adtd-gr-plot", "figure"),
         Input("adtd-gr-selected-genes", "value"),
-        State("adtd-gr-plot", "figure")
+        State("adtd-gr-plot", "figure"),
+        State('session-id', 'data')
     )
-    def UpdateGeneRegulationPlot(genes, curr_fig):
+    def UpdateGeneRegulationPlot(genes, curr_fig, session_id):
+        cache = get_session_cache(session_id)
         error = ""
         fig = curr_fig
         if len(genes) < 1:
             error = "Select at least one gene!"
         else:
-            fig = get_gr_plot(localDCXCache, sorted(genes, key=str.lower))
+            fig = get_gr_plot(cache, sorted(genes, key=str.lower))
         return error, fig
 
     # Callback for downloading gene regulation results
     @app.callback(
         Output("adtd-gr-download", "data"),
         Input("adtd-gr-button-download", "n_clicks"),
-        State("adtd-dataset-combo", "value")
+        State("adtd-dataset-combo", "value"),
+        State('session-id', 'data')
     )
-    def ADTDDownloadGR(n_clicks, selectedDataset):
+    def ADTDDownloadGR(n_clicks, selectedDataset, session_id):
+        cache = get_session_cache(session_id)
         if "adtd-gr-button-download" == ctx.triggered_id:
-            selected_data = localDCXCache.ADTDmodel.Delta_est
+            selected_data = cache.ADTDmodel.Delta_est
             return dcc.send_data_frame(selected_data.to_csv, f"{selectedDataset}_Delta.csv")
         else:
             return None
@@ -279,15 +292,16 @@ def register_callbacks(app):
     # Callback for storing current ADTD tab in cache
     @app.callback(
         Input('adtd-skeleton', 'visible'),
-        State("main-content", "children")
+        State("main-content", "children"),
+        State('session-id', 'data')
     )
-    def storeCurrentADTDTab(skeletonVisible, currADTDTab):
-        localDCXCache.ADTDTab = currADTDTab
+    def storeCurrentADTDTab(skeletonVisible, currADTDTab, session_id):
+        cache = get_session_cache(session_id)
+        cache.ADTDTab = currADTDTab
 
-def get_adtd_layout(applCheckEnabled):
-    from utils.global_cache import localDCXCache
-    # Robust None-check for cache and file
-    if getattr(localDCXCache, 'DeconomixFile', None) is None:
+def get_adtd_layout(session_id, applCheckEnabled):
+    cache = get_session_cache(session_id)
+    if getattr(cache, 'DeconomixFile', None) is None:
         return dmc.Stack([
             dmc.Alert(
                 title="No file loaded!",
@@ -303,21 +317,18 @@ def get_adtd_layout(applCheckEnabled):
         {'value': 'train', 'label': "Training"},
         {'value': 'test', 'label': "Testing"}
     ]
-    if localDCXCache.DeconomixFile.Application is not None:
+    if cache.DeconomixFile.Application is not None:
         combobox_datasets_items.append({'value': 'appl', 'label': "Application"})
 
     adtd_layout = dmc.Stack(
         [
             html.Div(id="adtd-notify-container"),
-            # Loading
             dmc.LoadingOverlay(
                 visible=False,
                 id="adtd-exec-overlay",
                 loaderProps={"type": "oval", "color": "red", "size": "lg"},
                 overlayProps={"radius": "sm", "blur": 2}
             ),
-
-            # Parameters
             dmc.Fieldset(
                 legend="Parameters",
                 children=[
@@ -330,7 +341,6 @@ def get_adtd_layout(applCheckEnabled):
                                     dmc.Checkbox(id="adtd-par-check-Deltastatic", label="Delta static",
                                                  labelPosition='left', mb=10, checked=False),
                                 ]),
-
                                 dmc.NumberInput(id="adtd-par-lambda1", label="Lambda 1", value=1e-6,
                                                 min=1e-25, allowDecimal=True, allowNegative=False),
                                 dmc.NumberInput(id="adtd-par-lambda2",
@@ -344,11 +354,9 @@ def get_adtd_layout(applCheckEnabled):
                             children=[
                                 dmc.NumberInput(id="adtd-par-lambda_min", label="Lambda 2 Minimum", value=1e-12,
                                                 min=1e-25, allowDecimal=True, allowNegative=False),
-
                                 dmc.NumberInput(id="adtd-par-lambda_max",
                                                 label="Lambda 2 Maximum", value=1, min=1e-25,
                                                 allowDecimal=True, allowNegative=False),
-
                                 dmc.NumberInput(id="adtd-par-lambda_npoints",
                                                 label="Lambda 2 N points", value=13, min=1,
                                                 allowDecimal=False, allowNegative=False),
@@ -373,11 +381,8 @@ def get_adtd_layout(applCheckEnabled):
                             disabled=False,
                         )
                     ])
-
                 ]
             ),
-
-            # Results
             dmc.Skeleton(
                 id="adtd-skeleton",
                 visible=True,
@@ -397,12 +402,10 @@ def get_adtd_layout(applCheckEnabled):
                                               children=[
                                                   html.Div("Hyperparameter Search", id="adtd-res-hps")
                                               ]),
-
                                 dmc.TabsPanel(value="gr",
                                               children=[
                                                   html.Div("Gene regulation plots", id="adtd-res-gr")
                                               ]),
-
                                 dmc.TabsPanel(value="mixtures",
                                               children=[
                                                   html.Div("Estimated Mixture plots", id="adtd-res-mixtures")
@@ -423,8 +426,8 @@ def get_adtd_layout(applCheckEnabled):
     return adtd_layout
 
 
-def getHPSPlot(localDCXCache):
-    Losses = localDCXCache.ADTD_HPS_model.Losses
+def getHPSPlot(cache):
+    Losses = cache.ADTD_HPS_model.Losses
 
     avgLoss = Losses.mean(axis=0)
     stdLoss = Losses.std(axis=0)
@@ -432,7 +435,6 @@ def getHPSPlot(localDCXCache):
 
     fig = go.Figure()
 
-    # Plot mean loss
     fig.add_trace(go.Scatter(
         x=x_values,
         y=avgLoss,
@@ -459,15 +461,15 @@ def getHPSPlot(localDCXCache):
 
     return fig
 
-def get_tab_adtd_mixture(localDCXCache, dataset, hidden):
+def get_tab_adtd_mixture(cache, dataset, hidden):
 
     complete_dataset = dataset.copy()
     complete_dataset.loc['hidden'] = hidden.iloc[0]
 
     combobox_mixture_items = fill_combo_mixtures(complete_dataset)
 
-    selected_data = localDCXCache.ADTDmodel.C_est.copy()
-    selected_data.loc['hidden'] = localDCXCache.ADTDmodel.c_est.iloc[0]
+    selected_data = cache.ADTDmodel.C_est.copy()
+    selected_data.loc['hidden'] = cache.ADTDmodel.c_est.iloc[0]
 
     mixture = selected_data.iloc[:, 0]
 
@@ -532,15 +534,13 @@ def fill_combo_mixtures(dataset):
 
     return combobox_mixture_items
 
-def get_tab_adtd_geneRegulation(localDCXCache, dataset):
+def get_tab_adtd_geneRegulation(cache, dataset):
 
-    geneList = list(localDCXCache.DeconomixFile.X_mat.sort_index().index.unique())
+    geneList = list(cache.DeconomixFile.X_mat.sort_index().index.unique())
 
-    initially_selected = list(localDCXCache.ADTDmodel.Delta_est.abs().max(axis=1).sort_values(ascending=False).index.drop_duplicates())[:10]
+    initially_selected = list(cache.ADTDmodel.Delta_est.abs().max(axis=1).sort_values(ascending=False).index.drop_duplicates())[:10]
 
-    #initially_selected = geneList[0:10]
-
-    gr_plot_init = get_gr_plot(localDCXCache, initially_selected)
+    gr_plot_init = get_gr_plot(cache, initially_selected)
 
     tab_adtd_gr = dmc.Stack(
         children=[
@@ -566,19 +566,15 @@ def get_tab_adtd_geneRegulation(localDCXCache, dataset):
     return tab_adtd_gr
 
 
-def get_gr_plot(localDCXCache, selected_genes):
+def get_gr_plot(cache, selected_genes):
 
-    cell_types = list(localDCXCache.ADTDmodel.C_est.index.unique())
-    delta = localDCXCache.ADTDmodel.Delta_est
+    cell_types = list(cache.ADTDmodel.C_est.index.unique())
+    delta = cache.ADTDmodel.Delta_est
 
     norm = CenteredNorm(1)
     normalized_delta = pd.DataFrame(norm(delta),
                                     index=delta.index,
                                     columns=delta.columns).loc[selected_genes, :]
-
-    #normalized_delta = pd.DataFrame((delta.to_numpy() - np.min(delta.to_numpy())) / (np.max(delta.to_numpy()) - np.min(delta.to_numpy())),
-    #                                index=delta.index,
-    #                                columns=delta.columns).loc[selected_genes, :]
 
     fig = go.Figure(
         data=go.Heatmap(
@@ -586,7 +582,7 @@ def get_gr_plot(localDCXCache, selected_genes):
             x=cell_types,
             y=selected_genes,
             colorscale="PuOr",
-            colorbar=dict(), #title="Regulation Factor Δ"
+            colorbar=dict(),
             zmid=0.5
         )
     )

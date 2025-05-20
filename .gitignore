@@ -13,3 +13,4 @@ utils/__pycache__/DeconomixFile.cpython-312.pyc
 utils/__pycache__/DTD_config.cpython-312.pyc
 /__pycache__
 /utils/__pycache__
+*.pyc
