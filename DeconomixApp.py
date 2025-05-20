@@ -61,37 +61,59 @@ logo_filename = "DeconomiX_Logo.png"
 
 ######################### PLUGIN-SYSTEM #########################
 
-# Automatic plug-in discovery with .config evaluation
+# Automatic plug-in discovery with .config evaluation and dependency resolution
 PLUGINS = []
+PLUGIN_ERRORS = []
+REGISTERED = set()
 PAGES_PATH = os.path.join(os.path.dirname(__file__), "pages")
+PLUGIN_CONFIGS = []
+
+# First, collect all configs
 for fname in os.listdir(PAGES_PATH):
     if fname.endswith(".py") and not fname.startswith("_"):
         modname = fname[:-3]
-        module = importlib.import_module(f"pages.{modname}")
-        # Check if the module provides the required functions
-        if hasattr(module, "get_layout") and hasattr(module, "register_callbacks"):
-            # Read corresponding .config file
-            config_path = os.path.join(PAGES_PATH, f"{modname}.config")
-            config = {}
-            if os.path.exists(config_path):
-                with open(config_path, "r") as f:
-                    for line in f:
-                        if "=" in line:
-                            key, value = line.split("=", 1)
-                            config[key.strip()] = value.strip().strip('"')
-            # Fallbacks if values are missing (ENGLISH)
-            position = int(config.get("position", 999))
-            nav_id = config.get("id", f"nav-{modname.lower()}")
-            # Use English fallback titles and descriptions
-            title = config.get("title", modname.replace("_page", "").capitalize())
-            description = config.get("description", f"{title} plug-in")
-            PLUGINS.append({
-                "position": position,
-                "label": title,
-                "description": description,
-                "id": nav_id,
-                "module": module,
-            })
+        config_path = os.path.join(PAGES_PATH, f"{modname}.config")
+        config = {"modname": modname}
+        if os.path.exists(config_path):
+            with open(config_path, "r") as f:
+                for line in f:
+                    if "=" in line:
+                        key, value = line.split("=", 1)
+                        config[key.strip()] = value.strip().strip('"')
+        PLUGIN_CONFIGS.append(config)
+
+# Register plug-ins in dependency order
+while PLUGIN_CONFIGS:
+    progress = False
+    for config in PLUGIN_CONFIGS[:]:
+        modname = config["modname"]
+        dependencies = [d.strip() for d in config.get("dependencies", "").split(",") if d.strip()]
+        if all(dep in REGISTERED or dep == modname for dep in dependencies):
+            module = importlib.import_module(f"pages.{modname}")
+            if hasattr(module, "get_layout") and hasattr(module, "register_callbacks"):
+                position = int(config.get("position", 999))
+                nav_id = config.get("id", f"nav-{modname.lower()}")
+                title = config.get("title", modname.replace("_page", "").capitalize())
+                description = config.get("description", f"{title} plug-in")
+                PLUGINS.append({
+                    "position": position,
+                    "label": title,
+                    "description": description,
+                    "id": nav_id,
+                    "module": module,
+                })
+                REGISTERED.add(modname)
+            PLUGIN_CONFIGS.remove(config)
+            progress = True
+    if not progress:
+        # Could not resolve some plug-ins due to missing dependencies
+        for config in PLUGIN_CONFIGS:
+            modname = config["modname"]
+            dependencies = [d.strip() for d in config.get("dependencies", "").split(",") if d.strip()]
+            missing = [dep for dep in dependencies if dep not in REGISTERED and dep != modname]
+            if missing:
+                PLUGIN_ERRORS.append(f"Plug-in '{modname}' could not be registered. Missing dependencies: {', '.join(missing)}.")
+        break
 
 # Sort by position
 PLUGINS.sort(key=lambda x: x["position"])
@@ -101,8 +123,20 @@ nav_links = [
     dmc.NavLink(label=plugin["label"], description=plugin["description"], id=plugin["id"]) for plugin in PLUGINS
 ]
 
+# Notification area for dependency errors
+notification_area = []
+if PLUGIN_ERRORS:
+    notification_area = [
+        dmc.Alert(
+            title="Plug-in registration error",
+            color="red",
+            children=[html.Ul([html.Li(msg) for msg in PLUGIN_ERRORS])],
+            style={"marginBottom": 20}
+        )
+    ]
+
 layout = dmc.AppShell(
-    [
+    notification_area + [
         dmc.AppShellHeader(
             dmc.Group(
                 [
@@ -131,7 +165,7 @@ layout = dmc.AppShell(
             p="md",
         ),
         dmc.AppShellMain(id="main-content",
-                         children=PLUGINS[0]["module"].get_layout()),
+                         children=PLUGINS[0]["module"].get_layout() if PLUGINS else dmc.Text("No plug-ins available.")),
     ],
     header={"height": 60},
     navbar={
