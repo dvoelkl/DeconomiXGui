@@ -112,6 +112,10 @@ def register_callbacks(app):
         prevent_initial_call=True
     )
     def runADTD(n_clicks, Cstatic, Deltastatic, lambda1, lambda2, dataset, nIter, hps_disabled, gr_disabled, mix_disabled):
+        # Prüfe, ob Ergebnis bereits im Cache liegt
+        cached = localDCXCache.get_adtd_result(dataset, lambda1, lambda2, nIter, Cstatic, Deltastatic)
+        if cached is not None:
+            return cached['tab_mixture'], cached['tab_gr'], 'mixtures', hps_disabled, Deltastatic, False
         previousDataset = localDCXCache.ADTD_config.Dataset
         localDCXCache.ADTD_config.Cstatic = Cstatic
         localDCXCache.ADTD_config.Deltastatic = Deltastatic
@@ -146,39 +150,88 @@ def register_callbacks(app):
             tab_gr = get_tab_adtd_geneRegulation(localDCXCache, dataset)
         else:
             tab_gr = html.Div("Something went wrong, you shouldn't see this!")
+        # Speichere Ergebnis im Cache
+        localDCXCache.set_adtd_result(dataset, lambda1, lambda2, nIter, Cstatic, Deltastatic, {
+            'tab_mixture': tab_mixture,
+            'tab_gr': tab_gr,
+            'C_est': localDCXCache.ADTDmodel.C_est.copy(),
+            'c_est': localDCXCache.ADTDmodel.c_est.copy()
+        })
         return tab_mixture, tab_gr, 'mixtures', hps_disabled, Deltastatic, False
+
+    # Callback für Skeleton-Handling beim Dataset-Wechsel
+    @app.callback(
+        Output("adtd-skeleton", "visible"),
+        Output('adtd-res-mixtures', 'children', allow_duplicate=True),
+        Output('adtd-res-gr', 'children', allow_duplicate=True),
+        Output('adtd-tab-panel', 'value', allow_duplicate=True),
+        Output('adtd-tab-hps', 'disabled', allow_duplicate=True),
+        Output('adtd-tab-gr', 'disabled', allow_duplicate=True),
+        Output('adtd-tab-mix', 'disabled', allow_duplicate=True),
+        Input("adtd-dataset-combo", "value"),
+        State('adtd-par-check-Cstatic', 'checked'),
+        State('adtd-par-check-Deltastatic', 'checked'),
+        State('adtd-par-lambda1', 'value'),
+        State('adtd-par-lambda2', 'value'),
+        State("adtd-par-iterations", "value"),
+        State('adtd-tab-hps', 'disabled'),
+        State('adtd-tab-gr', 'disabled'),
+        State('adtd-tab-mix', 'disabled'),
+        prevent_initial_call=True
+    )
+    def restoreADTDResultsOnDatasetChange(dataset, Cstatic, Deltastatic, lambda1, lambda2, nIter, hps_disabled, gr_disabled, mix_disabled):
+        # Setze das aktuelle Dataset im Cache, damit der Mechanismus konsistent bleibt
+        localDCXCache.ADTD_config.Dataset = dataset
+        cached = localDCXCache.get_adtd_result(dataset, lambda1, lambda2, nIter, Cstatic, Deltastatic)
+        if cached is not None:
+            return False, cached['tab_mixture'], cached['tab_gr'], 'mixtures', hps_disabled, Deltastatic, False
+        else:
+            return True, html.Div("Estimated Mixture plots", id="adtd-res-mixtures"), html.Div("Gene regulation plots", id="adtd-res-gr"), 'mixtures', True, True, True
 
     # Callback for updating ADTD pie plot
     @app.callback(
         Output("adtd-mix-pie-plot", "figure"),
         Input("adtd-mix-mixture-combo", "value"),
+        State("adtd-dataset-combo", "value"),
+        State('adtd-par-check-Cstatic', 'checked'),
+        State('adtd-par-check-Deltastatic', 'checked'),
+        State('adtd-par-lambda1', 'value'),
+        State('adtd-par-lambda2', 'value'),
+        State("adtd-par-iterations", "value"),
         prevent_initial_call=True
     )
-    def UpdateADTDPiePlot(selectedMixture):
-        selected_data = localDCXCache.ADTDmodel.C_est.copy()
-        selected_data.loc['hidden'] = localDCXCache.ADTDmodel.c_est.iloc[0]
-        mixture = selected_data.iloc[:, int(selectedMixture[1:]) - 1]
-        import matplotlib
-        colors = dict(matplotlib.colors.cnames.items())
-        hex_colors = tuple(colors.values())
-        mixture_data = [
-            {'name': mixture.index[i], "value": np.round(estimate, 4), "color": hex_colors[i + 25]} for i, estimate in enumerate(mixture)
-        ]
-        pie_plot = go.Figure(
-            data=[
-                go.Pie(
-                    labels=[item['name'] for item in mixture_data],
-                    values=[item['value'] for item in mixture_data],
-                    marker=dict(colors=[item['color'] for item in mixture_data]),
-                    textinfo="label+value",
-                    showlegend=False,
-                    hoverinfo="none",
-                    insidetextorientation="radial",
-                    textposition="outside"
-                )
+    def UpdateADTDPiePlot(selectedMixture, dataset, Cstatic, Deltastatic, lambda1, lambda2, nIter):
+        # Hole die korrekten Ergebnisse aus dem Cache für das aktuell gewählte Dataset und die aktuelle Parametrisierung
+        cached = localDCXCache.get_adtd_result(dataset, lambda1, lambda2, nIter, Cstatic, Deltastatic)
+        if cached is not None and 'C_est' in cached and 'c_est' in cached:
+            C_est = cached['C_est'].copy()
+            c_est = cached['c_est']
+            C_est.loc['hidden'] = c_est.iloc[0]
+            idx = int(selectedMixture[1:]) - 1
+            mixture = C_est.iloc[:, idx]
+            import matplotlib
+            colors = dict(matplotlib.colors.cnames.items())
+            hex_colors = tuple(colors.values())
+            mixture_data = [
+                {'name': mixture.index[i], "value": np.round(estimate, 4), "color": hex_colors[i + 25]} for i, estimate in enumerate(mixture)
             ]
-        )
-        return pie_plot
+            pie_plot = go.Figure(
+                data=[
+                    go.Pie(
+                        labels=[item['name'] for item in mixture_data],
+                        values=[item['value'] for item in mixture_data],
+                        marker=dict(colors=[item['color'] for item in mixture_data]),
+                        textinfo="label+value",
+                        showlegend=False,
+                        hoverinfo="none",
+                        insidetextorientation="radial",
+                        textposition="outside"
+                    )
+                ]
+            )
+            return pie_plot
+        # Fallback: leeres Chart
+        return go.Figure()
 
     # Callback for downloading ADTD estimated composition
     @app.callback(
@@ -222,19 +275,6 @@ def register_callbacks(app):
             return dcc.send_data_frame(selected_data.to_csv, f"{selectedDataset}_Delta.csv")
         else:
             return None
-
-    # Callback for resetting results when dataset changes
-    @app.callback(
-        Output("adtd-skeleton", "visible"),
-        Input("adtd-dataset-combo", "value"),
-        State("adtd-skeleton", "visible"),
-    )
-    def resetResults(selectedDataset, skeletonVisible):
-        if localDCXCache.ADTD_config.Dataset == selectedDataset:
-            return skeletonVisible
-        else:
-            localDCXCache.clearADTD()
-            return True
 
     # Callback for storing current ADTD tab in cache
     @app.callback(

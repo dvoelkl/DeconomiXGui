@@ -34,6 +34,7 @@ class DCXCache:
         self.ADTD_config = ADTD_config
         self.ADTD_HPS_model = None
         self.ADTDmodel = None
+        self.ADTD_results_cache = {}  # (dataset, lambda1, lambda2, nIter, Cstatic, Deltastatic) -> dict with results
 
     def clearDTD(self):
         print("[DeconomixCache] clearDTD called")
@@ -55,8 +56,17 @@ class DCXCache:
         self.ADTD_config = ADTDConfig()
         self.ADTD_HPS_model = None
         self.ADTDmodel = None
+        self.ADTD_results_cache = {}  # Cache wird beim Reset gelöscht
 
     def clearAll(self):
         print("[DeconomixCache] clearAll called")
         self.clearDTD()
         self.clearADTD()
+
+    def get_adtd_result(self, dataset, lambda1, lambda2, nIter, Cstatic, Deltastatic):
+        key = (dataset, lambda1, lambda2, nIter, Cstatic, Deltastatic)
+        return self.ADTD_results_cache.get(key, None)
+
+    def set_adtd_result(self, dataset, lambda1, lambda2, nIter, Cstatic, Deltastatic, result_dict):
+        key = (dataset, lambda1, lambda2, nIter, Cstatic, Deltastatic)
+        self.ADTD_results_cache[key] = result_dict
