@@ -8,7 +8,7 @@ import dash_mantine_components as dmc
 from dash import Dash, Input, Output, State, callback, _dash_renderer, dcc, html
 import pandas as pd
 from utils.DeconomixFile import DeconomixFile
-from utils.session_cache_manager import get_session_cache
+from utils.session_cache_manager import get_session_cache, session_manager
 import base64, io
 import scanpy as sc
 import numpy as np
@@ -63,11 +63,6 @@ def get_upload_layout():
                 dmc.Button("Import from AnnData", id="anndata-trigger-import"),
                 dmc.Button("DCX Converter", id="dcxconvert-trigger", color="teal", ml=10),
             ]),
-            dmc.Modal(
-                title="File format not supported",
-                id="upload-file-not-supported-alert",
-                children=dmc.Text("The uploaded file could not be parsed as DeconomiX File!"),
-            ),
             dmc.Modal(
                 title="Import from AnnData",
                 id="import-anndata-modal",
@@ -248,14 +243,61 @@ def get_upload_layout():
                     visible=False,
                     children=html.Div(id="upload-file-properties"),
                     mb=10
-                )
+                ),
+        dmc.Modal(
+            title="File format not supported",
+            id="upload-file-not-supported-alert",
+            children=dmc.Text("The uploaded file could not be parsed as DeconomiX File!"),
+        )
         ]
     )
 
     return upload_layout
 
 def get_layout(session_id=None):
-    return get_upload_layout()
+    cache = get_session_cache(session_id) if session_id else None
+    # File-Properties vorbereiten, falls Datei geladen
+    file_properties = None
+    if cache and getattr(cache, 'DeconomixFile', None) is not None:
+        file = cache.DeconomixFile
+        filename = getattr(file, 'filename', '')
+        modification_date = ''
+        file_properties = get_file_properties_layout(filename, modification_date, file)
+    # Upload-Layout immer gleich, nur file_properties ggf. vorbelegen
+    layout = dmc.Stack([
+        html.Div([
+            dcc.Upload(
+                id='upload-file',
+                children=html.Div([
+                    'Drag and Drop or ',
+                    html.A('Select File')
+                ]),
+                style={
+                    'width': '100%',
+                    'height': '60px',
+                    'lineHeight': '60px',
+                    'borderWidth': '1px',
+                    'borderStyle': 'dashed',
+                    'borderRadius': '5px',
+                    'textAlign': 'center',
+                    'margin': '10px'
+                },
+                multiple=False
+            ),
+            dmc.Group([
+                dmc.Button("Import from AnnData", id="anndata-trigger-import"),
+                dmc.Button("DCX Converter", id="dcxconvert-trigger", color="teal", ml=10),
+            ]),
+            html.Div(id="upload-file-properties", children=file_properties),
+        ]),
+        # Modal immer als eigener Eintrag
+        dmc.Modal(
+            title="File format not supported",
+            id="upload-file-not-supported-alert",
+            children=dmc.Text("The uploaded file could not be parsed as DeconomiX File!"),
+        ),
+    ])
+    return layout
 
 def register_callbacks(app):
     from dash import Output, Input, State, no_update, ctx
@@ -287,6 +329,8 @@ def register_callbacks(app):
                     cache.DeconomixFile.filename = filename
                     file_properties_layout = get_file_properties_layout(filename, last_modified, cache.DeconomixFile)
                     cache.clearAll()
+                    # Persistiere Session nach erfolgreichem Upload
+                    session_manager.save_session(session_id)
                 except Exception as e:
                     showAlert = True
                     disabled_dtd = True
@@ -302,16 +346,17 @@ def register_callbacks(app):
     @app.callback(
         Output('upload-file-properties', 'children'),
         Output('upload-file-not-supported-alert', 'opened', allow_duplicate=True),
+        Output('navbar', 'children', allow_duplicate=True),
         Input('upload-file', 'contents'),
         Input('upload-file', 'filename'),
         Input('upload-file', 'last_modified'),
-        State('nav-dtd_page', 'disabled'),
-        State('nav-adtd_page', 'disabled'),
         State('session-id', 'data'),
         prevent_initial_call='initial_duplicate')
-    def uploadDeconomixFile(content, filename, last_modified, dtd_was_disabled, adtd_was_disabled, session_id):
-        file_properties_layout, disabled_dtd, disabled_adtd, showAlert = upload_deconomix_file_callback(content, filename, last_modified, dtd_was_disabled, adtd_was_disabled, session_id)
-        return file_properties_layout, showAlert
+    def uploadDeconomixFile(content, filename, last_modified, session_id):
+        from DeconomixApp import get_nav_links
+        file_properties_layout, _, _, showAlert = upload_deconomix_file_callback(content, filename, last_modified, None, None, session_id)
+        nav_links = get_nav_links(session_id)
+        return file_properties_layout, showAlert, nav_links
 
     @app.callback(
         Output("dcxconvert-modal", "opened", allow_duplicate=True),
@@ -491,24 +536,6 @@ def register_callbacks(app):
     )
     def showReferenceMatrix(referenceClicked, opened, session_id):
         return not opened
-
-    # Callback for navigation status (enable/disable DTD/ADTD)
-    @app.callback(
-        [
-            Output('nav-dtd_page', 'disabled', allow_duplicate=True),
-            Output('nav-adtd_page', 'disabled', allow_duplicate=True)
-        ],
-        [
-            Input('upload-file-properties', 'children'),
-            State('session-id', 'data')
-        ],
-        prevent_initial_call=True
-    )
-    def update_nav_disabled(file_properties, session_id):
-        # If a file is loaded, enable DTD, ADTD remains disabled until DTD is executed
-        if isinstance(file_properties, str) and file_properties == "No file loaded!":
-            return True, True
-        return False, True
 
 def dcxconvert_update_indicators(x, train, test, app_, author, filename):
     """Helper function for the indicators and download button status in the DCX Converter Modal."""

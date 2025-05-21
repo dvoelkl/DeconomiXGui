@@ -13,7 +13,7 @@ import plotly.graph_objects as go
 import numpy as np
 import matplotlib
 from matplotlib.colors import CenteredNorm
-from utils.session_cache_manager import get_session_cache
+from utils.session_cache_manager import get_session_cache, session_manager
 
 def get_layout(session_id, checkApplEnabled=True):
     cache = get_session_cache(session_id)
@@ -163,6 +163,8 @@ def register_callbacks(app):
             'C_est': cache.ADTDmodel.C_est.copy(),
             'c_est': cache.ADTDmodel.c_est.copy()
         })
+        # Persistiere Session nach erfolgreichem ADTD-Lauf
+        session_manager.save_session(session_id)
         return tab_mixture, tab_gr, 'mixtures', hps_disabled, Deltastatic, False
 
     # Callback for Skeleton handling when dataset changes

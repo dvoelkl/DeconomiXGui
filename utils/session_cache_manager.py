@@ -50,10 +50,12 @@ class SessionCacheManager:
         with self._lock:
             session_id = datetime.datetime.now().strftime("%Y%m%d#%H%M%S#") + str(uuid.uuid4())[:8]
             cache = DCXCache(None, DTDConfig(), ADTDConfig())
+            # Setze den Namen als Attribut im Cache (optional, für UI)
+            cache.session_name = name or "Session " + session_id[:8]
             self._sessions[session_id] = cache
             self._meta[session_id] = {
                 "created": datetime.datetime.now().isoformat(),
-                "name": name or session_id,
+                "name": name or "Session " + session_id[:8],
                 "status": "active"
             }
             self.save_session(session_id)
@@ -125,6 +127,9 @@ class SessionCacheManager:
         with self._lock:
             if session_id in self._meta:
                 self._meta[session_id]["name"] = new_name
+                # Optional: auch im Cache-Objekt speichern
+                if session_id in self._sessions:
+                    setattr(self._sessions[session_id], "session_name", new_name)
                 self._log(f"Renamed session {session_id} to {new_name}")
 
     def export_session(self, session_id, export_path):
@@ -140,10 +145,12 @@ class SessionCacheManager:
             with open(import_path, "rb") as f:
                 cache = pickle.load(f)
             session_id = datetime.datetime.now().strftime("%Y%m%d#%H%M%S#") + str(uuid.uuid4())[:8]
+            # Setze den Namen als Attribut im Cache (optional, für UI)
+            cache.session_name = name or "Session " + session_id[:8]
             self._sessions[session_id] = cache
             self._meta[session_id] = {
                 "created": datetime.datetime.now().isoformat(),
-                "name": name or session_id,
+                "name": name or "Session " + session_id[:8],
                 "status": "active"
             }
             self.save_session(session_id)
@@ -166,10 +173,12 @@ def get_session_cache(session_id):
         from utils.DTD_config import DTDConfig
         from utils.ADTD_config import ADTDConfig
         cache = DCXCache(None, DTDConfig(), ADTDConfig())
+        # Setze einen Default-Namen, der nicht die session_id ist
+        cache.session_name = "Session " + session_id[:8]
         session_manager._sessions[session_id] = cache
         session_manager._meta[session_id] = {
             "created": datetime.datetime.now().isoformat(),
-            "name": session_id,
+            "name": "Session " + session_id[:8],
             "status": "active"
         }
         session_manager.save_session(session_id)

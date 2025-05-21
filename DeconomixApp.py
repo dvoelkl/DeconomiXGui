@@ -121,9 +121,29 @@ while PLUGIN_CONFIGS:
 PLUGINS.sort(key=lambda x: x["position"])
 
 # Dynamic navigation
-nav_links = [
-    dmc.NavLink(label=plugin["label"], description=plugin["description"], id=plugin["id"]) for plugin in PLUGINS
-]
+
+def get_nav_links(session_id=None):
+    """Erzeuge NavLinks, wobei DTD- und ADTD-Tab nur aktiviert werden, wenn Voraussetzungen erfüllt sind."""
+    dtd_disabled = True
+    adtd_disabled = True
+    if session_id:
+        try:
+            cache = get_session_cache(session_id)
+            dtd_disabled = getattr(cache, "DeconomixFile", None) is None
+            # ADTD-Tab nur aktivieren, wenn Datei geladen UND DTDmodel existiert
+            adtd_disabled = getattr(cache, "DeconomixFile", None) is None or getattr(cache, "DTDmodel", None) is None
+        except Exception:
+            dtd_disabled = True
+            adtd_disabled = True
+    links = []
+    for plugin in PLUGINS:
+        if plugin["id"] == "nav-dtd_page":
+            links.append(dmc.NavLink(label=plugin["label"], description=plugin["description"], id=plugin["id"], disabled=dtd_disabled))
+        elif plugin["id"] == "nav-adtd_page":
+            links.append(dmc.NavLink(label=plugin["label"], description=plugin["description"], id=plugin["id"], disabled=adtd_disabled))
+        else:
+            links.append(dmc.NavLink(label=plugin["label"], description=plugin["description"], id=plugin["id"]))
+    return links
 
 # Notification area for dependency errors
 notification_area = []
@@ -164,7 +184,7 @@ layout = dmc.AppShell(
         ),
         dmc.AppShellNavbar(
             id="navbar",
-            children=nav_links,
+            children=get_nav_links(),  # Korrekt: children ist eine Liste, nicht [Liste]
             p="md",
         ),
         dmc.AppShellMain(id="main-content",
@@ -190,6 +210,7 @@ for plugin in PLUGINS:
 # Dynamic routing for page display
 @callback(
     Output("main-content", "children", allow_duplicate=True),
+    Output("navbar", "children", allow_duplicate=True),
     [Input(plugin["id"], "n_clicks") for plugin in PLUGINS],
     State("session-id", "data"),
     prevent_initial_call=True,
@@ -197,10 +218,51 @@ for plugin in PLUGINS:
 def display_plugin(*args):
     ctx_id = ctx.triggered_id
     session_id = args[-1]  # session_id from dcc.Store
+    nav_links = get_nav_links(session_id)
     for plugin in PLUGINS:
         if plugin["id"] == ctx_id:
-            return plugin["module"].get_layout(session_id)
-    return PLUGINS[0]["module"].get_layout(session_id)
+            # Spezialfall: DTD/ADTD Tabs aktivieren je nach Session-Status
+            if plugin["id"] == "nav-dtd_page":
+                from utils.session_cache_manager import get_session_cache
+                cache = get_session_cache(session_id)
+                applCheckEnabled = False
+                geneCount = 0
+                dtd_tab = "loss"
+                file_loaded = getattr(cache, "DeconomixFile", None) is not None
+                dtd_executed = getattr(cache, "DTDmodel", None) is not None
+                print(f"[DEBUG] Session-Wechsel: DTD_PAGE | session_id={session_id} | file_loaded={file_loaded} | dtd_executed={dtd_executed}")
+                if file_loaded:
+                    applCheckEnabled = True
+                    geneCount = cache.DeconomixFile.X_mat.shape[0] if hasattr(cache.DeconomixFile, "X_mat") and cache.DeconomixFile.X_mat is not None else 0
+                    if dtd_executed:
+                        dtd_tab = cache.DTDTab if hasattr(cache, "DTDTab") else "loss"
+                print(f"[DEBUG] DTD Tab aktiv: {dtd_tab}")
+                layout = plugin["module"].get_layout(session_id, applCheckEnabled, geneCount)
+                # Tabs-Panel ggf. setzen
+                if hasattr(layout, "props") and "children" in layout.props:
+                    for child in layout.props["children"]:
+                        if hasattr(child, "props") and child.props.get("id") == "dtd-tab-panel":
+                            child.props["value"] = dtd_tab
+                return layout, nav_links
+            if plugin["id"] == "nav-adtd_page":
+                from utils.session_cache_manager import get_session_cache
+                cache = get_session_cache(session_id)
+                applCheckEnabled = getattr(cache, "DTDmodel", None) is not None
+                adtd_tab = "mixtures"
+                adtd_executed = getattr(cache, "ADTDmodel", None) is not None
+                print(f"[DEBUG] Session-Wechsel: ADTD_PAGE | session_id={session_id} | dtd_executed={applCheckEnabled} | adtd_executed={adtd_executed}")
+                if adtd_executed:
+                    adtd_tab = cache.ADTDTab if hasattr(cache, "ADTDTab") else "mixtures"
+                print(f"[DEBUG] ADTD Tab aktiv: {adtd_tab}")
+                layout = plugin["module"].get_layout(session_id, applCheckEnabled)
+                # Tabs-Panel ggf. setzen
+                if hasattr(layout, "props") and "children" in layout.props:
+                    for child in layout.props["children"]:
+                        if hasattr(child, "props") and child.props.get("id") == "adtd-tab-panel":
+                            child.props["value"] = adtd_tab
+                return layout, nav_links
+            return plugin["module"].get_layout(session_id), nav_links
+    return PLUGINS[0]["module"].get_layout(session_id), nav_links
 
 ### Callbacks Navigation ###
 @callback(

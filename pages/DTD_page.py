@@ -12,7 +12,7 @@ from dash import html
 import plotly.graph_objects as go
 import dash_bio as dashbio
 import numpy as np
-from utils.session_cache_manager import get_session_cache
+from utils.session_cache_manager import get_session_cache, session_manager
 
 def get_layout(session_id, checkApplEnabled=True, n_genes=0):
     return get_dtd_layout(session_id, checkApplEnabled, n_genes)
@@ -62,7 +62,7 @@ def register_callbacks(app):
         Output('dtd-res-corr', 'children', allow_duplicate=True),
         Output('dtd-res-mixtures', 'children', allow_duplicate=True),
         Output('dtd-res-markermap', 'children', allow_duplicate=True),
-        Output('nav-adtd_page', 'disabled', allow_duplicate=True),
+        Output('navbar', 'children', allow_duplicate=True),  # NEU: Navbar-Output
         Input('dtd-exec-overlay', 'visible'),
         State('session-id', 'data'),
         State('dtd-par-check-ApplData', 'checked'),
@@ -73,6 +73,8 @@ def register_callbacks(app):
         cache = get_session_cache(session_id)
         if "dtd-exec-overlay" == ctx.triggered_id and exec_overlay_visible is True:
             try:
+                # Import jetzt lokal, um circular import zu vermeiden
+                from DeconomixApp import get_nav_links
                 _, cache.DTD_Y_train, cache.DTD_C_train = simulate_data(cache.DeconomixFile.Train,
                                                                         cache.DTD_config.train_n_mixtures,
                                                                         cache.DTD_config.train_n_cells,
@@ -100,9 +102,12 @@ def register_callbacks(app):
                 dtd_tab_corr = get_tab_dtd_correlation(cache)
                 dtd_tab_mix = get_tab_dtd_mixture(cache, runOnApplChecked)
                 dtd_tab_marker = get_tab_dtd_markermap(cache)
-                return False, False, dtd_tab_loss, dtd_tab_corr, dtd_tab_mix, dtd_tab_marker, False
+                # Persistiere Session nach erfolgreichem DTD-Lauf
+                session_manager.save_session(session_id)
+                nav_links = get_nav_links(session_id)  # Navbar aktualisieren
+                return False, False, dtd_tab_loss, dtd_tab_corr, dtd_tab_mix, dtd_tab_marker, nav_links
             except Exception as e:
-                return False, False, f"Error: {e}", None, None, None, True
+                return False, False, f"Error: {e}", None, None, None, no_update
         else:
             return no_update, no_update, no_update, no_update, no_update, no_update, no_update
 
