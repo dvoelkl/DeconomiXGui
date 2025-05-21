@@ -8,6 +8,7 @@ import threading
 import pickle
 import uuid
 import datetime
+import json
 from utils.DeconomixCache import DCXCache
 from utils.DTD_config import DTDConfig
 from utils.ADTD_config import ADTDConfig
@@ -34,6 +35,22 @@ class SessionCacheManager:
     def _archive_path(self, session_id):
         return os.path.join(self.archive_dir, f"{session_id}.pkl")
 
+    def _meta_path(self, session_id):
+        return os.path.join(self.cache_dir, f"{session_id}.meta.json")
+
+    def _save_meta(self, session_id):
+        meta = self._meta.get(session_id)
+        if meta is not None:
+            with open(self._meta_path(session_id), "w") as f:
+                json.dump(meta, f)
+
+    def _load_meta(self, session_id):
+        try:
+            with open(self._meta_path(session_id), "r") as f:
+                return json.load(f)
+        except Exception:
+            return None
+
     def _load_all_sessions(self):
         for fname in os.listdir(self.cache_dir):
             if fname.endswith(".pkl"):
@@ -41,7 +58,11 @@ class SessionCacheManager:
                 try:
                     with open(self._session_path(session_id), "rb") as f:
                         self._sessions[session_id] = pickle.load(f)
-                    self._meta[session_id] = {"created": os.path.getctime(self._session_path(session_id))}
+                    meta = self._load_meta(session_id)
+                    if meta:
+                        self._meta[session_id] = meta
+                    else:
+                        self._meta[session_id] = {"created": os.path.getctime(self._session_path(session_id))}
                     self._log(f"Loaded session {session_id}")
                 except Exception as e:
                     self._log(f"Failed to load session {session_id}: {e}")
@@ -50,7 +71,6 @@ class SessionCacheManager:
         with self._lock:
             session_id = datetime.datetime.now().strftime("%Y%m%d#%H%M%S#") + str(uuid.uuid4())[:8]
             cache = DCXCache(None, DTDConfig(), ADTDConfig())
-            # Setze den Namen als Attribut im Cache (optional, für UI)
             cache.session_name = name or "Session " + session_id[:8]
             self._sessions[session_id] = cache
             self._meta[session_id] = {
@@ -59,6 +79,7 @@ class SessionCacheManager:
                 "status": "active"
             }
             self.save_session(session_id)
+            self._save_meta(session_id)
             self._log(f"Created new session {session_id}")
             return session_id
 
@@ -72,6 +93,7 @@ class SessionCacheManager:
             if cache is not None:
                 with open(self._session_path(session_id), "wb") as f:
                     pickle.dump(cache, f)
+                self._save_meta(session_id)
                 self._log(f"Saved session {session_id}")
 
     def delete_session(self, session_id):
@@ -80,6 +102,7 @@ class SessionCacheManager:
             self._meta.pop(session_id, None)
             try:
                 os.remove(self._session_path(session_id))
+                os.remove(self._meta_path(session_id))
                 self._log(f"Deleted session {session_id}")
             except FileNotFoundError:
                 pass
@@ -102,6 +125,7 @@ class SessionCacheManager:
                 self._meta[session_id] = {"created": os.path.getctime(archive_path), "status": "active"}
                 os.remove(archive_path)
                 self.save_session(session_id)
+                self._save_meta(session_id)
                 self._log(f"Restored session {session_id}")
 
     def list_sessions(self):
@@ -127,9 +151,9 @@ class SessionCacheManager:
         with self._lock:
             if session_id in self._meta:
                 self._meta[session_id]["name"] = new_name
-                # Optional: auch im Cache-Objekt speichern
                 if session_id in self._sessions:
                     setattr(self._sessions[session_id], "session_name", new_name)
+                self._save_meta(session_id)
                 self._log(f"Renamed session {session_id} to {new_name}")
 
     def export_session(self, session_id, export_path):
@@ -145,7 +169,6 @@ class SessionCacheManager:
             with open(import_path, "rb") as f:
                 cache = pickle.load(f)
             session_id = datetime.datetime.now().strftime("%Y%m%d#%H%M%S#") + str(uuid.uuid4())[:8]
-            # Setze den Namen als Attribut im Cache (optional, für UI)
             cache.session_name = name or "Session " + session_id[:8]
             self._sessions[session_id] = cache
             self._meta[session_id] = {
@@ -154,6 +177,7 @@ class SessionCacheManager:
                 "status": "active"
             }
             self.save_session(session_id)
+            self._save_meta(session_id)
             self._log(f"Imported session {session_id}")
             return session_id
 
@@ -173,7 +197,6 @@ def get_session_cache(session_id):
         from utils.DTD_config import DTDConfig
         from utils.ADTD_config import ADTDConfig
         cache = DCXCache(None, DTDConfig(), ADTDConfig())
-        # Setze einen Default-Namen, der nicht die session_id ist
         cache.session_name = "Session " + session_id[:8]
         session_manager._sessions[session_id] = cache
         session_manager._meta[session_id] = {
@@ -182,6 +205,7 @@ def get_session_cache(session_id):
             "status": "active"
         }
         session_manager.save_session(session_id)
+        session_manager._save_meta(session_id)
         session_manager._log(f"Auto-created session cache for {session_id}")
     return cache
 
