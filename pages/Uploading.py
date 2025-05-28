@@ -14,7 +14,6 @@ import scanpy as sc
 import numpy as np
 import dash
 
-# Helper functions for indicator style and required field check
 
 def get_indicator_style(uploaded):
     return {"display": "inline"} if uploaded else {"display": "none"}
@@ -38,8 +37,17 @@ def decode_input(content):
         decoded = base64.b64decode(content_string)
         return pd.read_csv(io.BytesIO(decoded), header=0, index_col=0)
 
-def get_upload_layout():
-    upload_layout = dmc.Stack([
+def get_layout(session_id=None):
+    cache = get_session_cache(session_id) if session_id else None
+    # File-Properties vorbereiten, falls Datei geladen
+    file_properties = None
+    if cache and getattr(cache, 'DeconomixFile', None) is not None:
+        file = cache.DeconomixFile
+        filename = getattr(file, 'filename', '')
+        modification_date = ''
+        file_properties = get_file_properties_layout(filename, modification_date, file)
+
+    layout = dmc.Stack([
         html.Div([
             dcc.Upload(
                 id='upload-file',
@@ -241,7 +249,7 @@ def get_upload_layout():
         ]),
         dmc.Skeleton(
                     visible=False,
-                    children=html.Div(id="upload-file-properties"),
+                    children=html.Div(id="upload-file-properties", children=file_properties),
                     mb=10
                 ),
         dmc.Modal(
@@ -251,52 +259,6 @@ def get_upload_layout():
         )
         ]
     )
-
-    return upload_layout
-
-def get_layout(session_id=None):
-    cache = get_session_cache(session_id) if session_id else None
-    # File-Properties vorbereiten, falls Datei geladen
-    file_properties = None
-    if cache and getattr(cache, 'DeconomixFile', None) is not None:
-        file = cache.DeconomixFile
-        filename = getattr(file, 'filename', '')
-        modification_date = ''
-        file_properties = get_file_properties_layout(filename, modification_date, file)
-    # Upload-Layout immer gleich, nur file_properties ggf. vorbelegen
-    layout = dmc.Stack([
-        html.Div([
-            dcc.Upload(
-                id='upload-file',
-                children=html.Div([
-                    'Drag and Drop or ',
-                    html.A('Select File')
-                ]),
-                style={
-                    'width': '100%',
-                    'height': '60px',
-                    'lineHeight': '60px',
-                    'borderWidth': '1px',
-                    'borderStyle': 'dashed',
-                    'borderRadius': '5px',
-                    'textAlign': 'center',
-                    'margin': '10px'
-                },
-                multiple=False
-            ),
-            dmc.Group([
-                dmc.Button("Import from AnnData", id="anndata-trigger-import"),
-                dmc.Button("DCX Converter", id="dcxconvert-trigger", color="teal", ml=10),
-            ]),
-            html.Div(id="upload-file-properties", children=file_properties),
-        ]),
-        # Modal immer als eigener Eintrag
-        dmc.Modal(
-            title="File format not supported",
-            id="upload-file-not-supported-alert",
-            children=dmc.Text("The uploaded file could not be parsed as DeconomiX File!"),
-        ),
-    ])
     return layout
 
 def register_callbacks(app):
@@ -368,6 +330,7 @@ def register_callbacks(app):
     )
     def toggle_dcxconvert_modal(open_click, cancel_click, modal_open, session_id):
         from dash import ctx
+        print(f"DCX Convert Modal triggered by: {ctx.triggered_id}")
         ctx_id = ctx.triggered_id
         if ctx_id == "dcxconvert-trigger":
             return True
@@ -377,13 +340,14 @@ def register_callbacks(app):
 
     @app.callback(
         Output("import-anndata-modal", "opened", allow_duplicate=True),
-        [Input("anndata-trigger-import", "n_clicks"),
-         Input("anndata-cancel-btn", "n_clicks")],
-        [State("import-anndata-modal", "opened"),
-         State('session-id', 'data')],
+        Input("anndata-trigger-import", "n_clicks"),
+        Input("anndata-cancel-btn", "n_clicks"),
+        State("import-anndata-modal", "opened"),
+        State('session-id', 'data'),
         prevent_initial_call=True
     )
     def toggle_anndata_modal(open_click, cancel_click, modal_open, session_id):
+        print(f"AnnData Import Modal triggered by: {ctx.triggered_id}")
         ctx_id = ctx.triggered_id
         if ctx_id == "anndata-trigger-import":
             return True
@@ -432,6 +396,7 @@ def register_callbacks(app):
         prevent_initial_call=True
     )
     def dcxconvert_download(n_clicks, x, train, test, app_, author, desc, filename, appdesc, traindesc, testdesc, session_id):
+        print(f"DCX Convert Download triggered by: {ctx.triggered_id}")
         if not (n_clicks and x and train and test and author and filename):
             return dash.no_update, dash.no_update, "Please fill all required fields."
         try:
@@ -536,20 +501,6 @@ def register_callbacks(app):
     )
     def showReferenceMatrix(referenceClicked, opened, session_id):
         return not opened
-
-def dcxconvert_update_indicators(x, train, test, app_, author, filename):
-    """Helper function for the indicators and download button status in the DCX Converter Modal."""
-    def get_indicator_style(uploaded):
-        return {"display": "inline"} if uploaded else {"display": "none"}
-    indicators = [get_indicator_style(x), get_indicator_style(train), get_indicator_style(test), get_indicator_style(app_)]
-    disabled = not (x and train and test and author and filename)
-    return (*indicators, disabled)
-
-def dcxconvert_download_callback(n_clicks, x, train, test, app_, author, desc, filename, appdesc, traindesc, testdesc):
-    """Helper function for the download callback in the DCX Converter Modal."""
-    # The actual logic for the download should be implemented here
-    # Placeholder implementation:
-    return None, False, ""
 
 def get_card_reference():
     # Card Reference
@@ -744,7 +695,6 @@ def get_card_gamma():
     return card_gamma
 
 def get_file_properties_layout(filename, modification_date, file):
-    #file = DeconomiXFile()
 
     CardDisplay = []
     if file.X_mat is not None:
@@ -804,21 +754,16 @@ def get_file_properties_layout(filename, modification_date, file):
     return file_properties_layout
 
 def get_distribution_plot(scData):
-    """
-    Returns a simple bar plot of cell type distribution using Plotly.
-    scData: pandas DataFrame with columns as cell types or a Series with cell type labels.
-    """
+
     import plotly.express as px
     import dash_mantine_components as dmc
     import dash
     import pandas as pd
-    # If scData is a DataFrame, try to infer cell type labels from columns or index
+    
     if isinstance(scData, pd.DataFrame):
-        # Try to use columns as cell types if they are categorical
         if hasattr(scData, 'columns') and hasattr(scData.columns, 'value_counts'):
             celltype_counts = scData.columns.value_counts()
         else:
-            # Fallback: count unique values in first column
             celltype_counts = scData.iloc[:,0].value_counts()
     elif isinstance(scData, pd.Series):
         celltype_counts = scData.value_counts()

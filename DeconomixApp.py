@@ -11,10 +11,6 @@ import dash_mantine_components as dmc
 import deconomix.methods
 from dash import Dash, Input, Output, State, callback, _dash_renderer, dcc, html, ctx, DiskcacheManager, set_props, \
     no_update
-from pages.Uploading import get_upload_layout, get_file_properties_layout, get_distribution_plot
-from pages.DTD_page import get_dtd_layout, get_tab_dtd_loss, get_tab_dtd_correlation, \
-    get_tab_dtd_mixture, get_correlation_dict, fill_combo_mixtures, get_tab_dtd_markermap, get_markermap_plot
-from pages.ADTD_page import get_adtd_layout, getHPSPlot, get_tab_adtd_mixture, get_tab_adtd_geneRegulation, get_gr_plot
 import plotly.graph_objects as go
 
 import matplotlib
