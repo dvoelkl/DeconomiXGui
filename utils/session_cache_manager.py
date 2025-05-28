@@ -68,20 +68,19 @@ class SessionCacheManager:
                     self._log(f"Failed to load session {session_id}: {e}")
 
     def create_session(self, name=None):
-        with self._lock:
-            session_id = datetime.datetime.now().strftime("%Y%m%d#%H%M%S#") + str(uuid.uuid4())[:8]
-            cache = DCXCache(None, DTDConfig(), ADTDConfig())
-            cache.session_name = name or "Session " + session_id[:8]
-            self._sessions[session_id] = cache
-            self._meta[session_id] = {
-                "created": datetime.datetime.now().isoformat(),
-                "name": name or "Session " + session_id[:8],
-                "status": "active"
-            }
-            self.save_session(session_id)
-            self._save_meta(session_id)
-            self._log(f"Created new session {session_id}")
-            return session_id
+        session_id = datetime.datetime.now().strftime("%Y%m%d#%H%M%S#") + str(uuid.uuid4())[:8]
+        cache = DCXCache(None, DTDConfig(), ADTDConfig())
+        cache.session_name = name or "Session " + session_id[:8]
+        self._sessions[session_id] = cache
+        self._meta[session_id] = {
+            "created": datetime.datetime.now().isoformat(),
+            "name": name or "Session " + session_id[:8],
+            "status": "active"
+        }
+        self.save_session(session_id)
+        self._save_meta(session_id)
+        self._log(f"Created new session {session_id}")
+        return session_id
 
     def get_session(self, session_id):
         with self._lock:

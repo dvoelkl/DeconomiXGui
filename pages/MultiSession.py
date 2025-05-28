@@ -74,21 +74,52 @@ def register_callbacks(app):
     # Callback: Create new session
     @app.callback(
         Output('main-content', 'children', allow_duplicate=True),
+        Output('navbar', 'children', allow_duplicate=True),
         Output('session-id', 'data', allow_duplicate=True),
         Output('session-manager-notify', 'message', allow_duplicate=True),
         Output('session-manager-notify', 'style', allow_duplicate=True),
         Input('create-session-btn', 'n_clicks'),
         State('session-id', 'data'),
+        State('main-content', 'children'),
         prevent_initial_call=True
     )
-    def create_session(n_clicks, session_id):
-        if not n_clicks:
-            return no_update, no_update, '', {'display': 'none'}
+    def create_session(n_clicks, session_id, main_content):
+        from dash import callback_context
+        ctx = callback_context
+        if not n_clicks or not ctx.triggered:
+            return no_update, no_update, no_update, '', {'display': 'none'}
         new_id = session_manager.create_session()
-        layout = get_layout(new_id)
+        #layout = get_layout(new_id)
         # Debug: Log relevant information
         print(f"[DEBUG] Create session clicked. Current session_id: {session_id}, New session_id: {new_id}")
-        return layout, new_id, f'Created new session {new_id}', {'display': 'block'}
+
+        active_plugin = 'nav-uploading'
+        try:
+            if isinstance(main_content, dict) and 'props' in main_content and 'id' in main_content['props']:
+                from DeconomixApp import PLUGINS
+                for plugin in PLUGINS:
+                    if plugin['id'] in str(main_content['props']['id']):
+                        active_plugin = plugin['id']
+                        break
+        except Exception:
+            pass
+
+        from DeconomixApp import PLUGINS, display_plugin, get_nav_links
+        plugin_args = [None] * len(PLUGINS)
+        for i, plugin in enumerate(PLUGINS):
+            if plugin['id'] == active_plugin:
+                plugin_args[i] = 1  # Simuliere Klick
+        plugin_args.append(new_id)
+        layout_result = display_plugin(*plugin_args)
+        # Falls display_plugin ein Tupel (layout, nav_links) liefert, beide extrahieren
+        if isinstance(layout_result, (tuple, list)) and len(layout_result) > 1:
+            layout, nav_links = layout_result[0], layout_result[1]
+        elif isinstance(layout_result, (tuple, list)) and len(layout_result) > 0:
+            layout, nav_links = layout_result[0], get_nav_links(new_id)
+        else:
+            layout, nav_links = layout_result, get_nav_links(new_id)
+
+        return layout, nav_links, new_id, f"Created new session {new_id}", {'display': 'block'}
 
     # Callback: Switch session
     @app.callback(

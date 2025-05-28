@@ -155,7 +155,7 @@ if PLUGIN_ERRORS:
 
 layout = dmc.AppShell(
     notification_area + [
-        dcc.Store(id="session-id", data=str(uuid.uuid4())),  # Defaultwert direkt beim Start!
+        dcc.Store(id="session-id", data=str(uuid.uuid4()), storage_type="session"),
         dmc.AppShellHeader(
             dmc.Group(
                 [
