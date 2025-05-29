@@ -17,6 +17,13 @@ from utils.session_cache_manager import get_session_cache, session_manager
 def get_layout(session_id, checkApplEnabled=True, n_genes=0):
     return get_dtd_layout(session_id, checkApplEnabled, n_genes)
 
+def nav_disabled(session_id):
+    disabled = True
+    if session_id is not None:
+        cache = get_session_cache(session_id)
+        disabled = not cache or not cache.DeconomixFile
+    return disabled
+
 def register_callbacks(app):
     from dash import Output, Input, State, no_update, ctx
     import dash_mantine_components as dmc

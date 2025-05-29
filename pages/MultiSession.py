@@ -1,5 +1,3 @@
-# MultiSession management page for DeconomiX GUI
-# All code and comments in English
 
 import dash_mantine_components as dmc
 from dash import html, dcc, Output, Input, State, callback, no_update, ALL
@@ -292,3 +290,6 @@ def register_callbacks(app):
         new_id = sessions[0]['session_id'] if sessions else None
         layout = get_layout(new_id)
         return layout, False, f'Session {target_id} deleted.', {'display': 'block'}, new_id
+
+def nav_disabled(session_id):
+    return False # Session Manager always active

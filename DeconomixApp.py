@@ -122,23 +122,29 @@ def get_nav_links(session_id=None):
     """Erzeuge NavLinks, wobei DTD- und ADTD-Tab nur aktiviert werden, wenn Voraussetzungen erfüllt sind."""
     dtd_disabled = True
     adtd_disabled = True
-    if session_id:
-        try:
-            cache = get_session_cache(session_id)
-            dtd_disabled = getattr(cache, "DeconomixFile", None) is None
-            # ADTD-Tab nur aktivieren, wenn Datei geladen UND DTDmodel existiert
-            adtd_disabled = getattr(cache, "DeconomixFile", None) is None or getattr(cache, "DTDmodel", None) is None
-        except Exception:
-            dtd_disabled = True
-            adtd_disabled = True
+    #if session_id:
+    #    try:
+    #        cache = get_session_cache(session_id)
+    #        #dtd_disabled = getattr(cache, "DeconomixFile", None) is None
+    #        # ADTD-Tab nur aktivieren, wenn Datei geladen UND DTDmodel existiert
+    #        adtd_disabled = getattr(cache, "DeconomixFile", None) is None or getattr(cache, "DTDmodel", None) is None
+    #    except Exception:
+    #        dtd_disabled = True
+    #        adtd_disabled = True
     links = []
     for plugin in PLUGINS:
-        if plugin["id"] == "nav-dtd_page":
-            links.append(dmc.NavLink(label=plugin["label"], description=plugin["description"], id=plugin["id"], disabled=dtd_disabled))
-        elif plugin["id"] == "nav-adtd_page":
-            links.append(dmc.NavLink(label=plugin["label"], description=plugin["description"], id=plugin["id"], disabled=adtd_disabled))
-        else:
-            links.append(dmc.NavLink(label=plugin["label"], description=plugin["description"], id=plugin["id"]))
+        is_disabled = False
+        if hasattr(module, "nav_disabled") and callable(plugin["module"].nav_disabled):
+            is_disabled = plugin["module"].nav_disabled(session_id)
+
+        links.append(dmc.NavLink(label=plugin["label"], description=plugin["description"], id=plugin["id"], disabled=is_disabled))
+
+        #if plugin["id"] == "nav-dtd_page":
+        #    links.append(dmc.NavLink(label=plugin["label"], description=plugin["description"], id=plugin["id"], disabled=dtd_disabled))
+        #elif plugin["id"] == "nav-adtd_page":
+        #    links.append(dmc.NavLink(label=plugin["label"], description=plugin["description"], id=plugin["id"], disabled=adtd_disabled))
+        #else:
+        #    links.append(dmc.NavLink(label=plugin["label"], description=plugin["description"], id=plugin["id"]))
     return links
 
 # Notification area for dependency errors

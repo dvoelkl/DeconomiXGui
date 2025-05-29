@@ -19,6 +19,13 @@ def get_layout(session_id, checkApplEnabled=True):
     cache = get_session_cache(session_id)
     return get_adtd_layout(session_id, checkApplEnabled)
 
+def nav_disabled(session_id):
+    disabled = True
+    if session_id is not None:
+        cache = get_session_cache(session_id)
+        disabled = getattr(cache, "DeconomixFile", None) is None or getattr(cache, "DTDmodel", None) is None
+    return disabled
+
 def register_callbacks(app):
     from dash import Output, Input, State, no_update, ctx
     import dash_mantine_components as dmc

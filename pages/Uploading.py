@@ -502,6 +502,9 @@ def register_callbacks(app):
     def showReferenceMatrix(referenceClicked, opened, session_id):
         return not opened
 
+def nav_disabled(session_id):
+    return False # Should always be enabled
+
 def get_card_reference():
     # Card Reference
     card_ref = dmc.Card(
