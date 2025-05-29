@@ -19,6 +19,24 @@ def get_layout(session_id, checkApplEnabled=True):
     cache = get_session_cache(session_id)
     return get_adtd_layout(session_id, checkApplEnabled)
 
+def display_plugin(session_id):
+    from utils.session_cache_manager import get_session_cache
+    cache = get_session_cache(session_id)
+    applCheckEnabled = getattr(cache, "DTDmodel", None) is not None
+    adtd_tab = "mixtures"
+    adtd_executed = getattr(cache, "ADTDmodel", None) is not None
+    print(f"[DEBUG] Session-Wechsel: ADTD_PAGE | session_id={session_id} | dtd_executed={applCheckEnabled} | adtd_executed={adtd_executed}")
+    if adtd_executed:
+        adtd_tab = cache.ADTDTab if hasattr(cache, "ADTDTab") else "mixtures"
+    print(f"[DEBUG] ADTD Tab aktiv: {adtd_tab}")
+    layout = get_layout(session_id, applCheckEnabled)
+    # Tabs-Panel ggf. setzen
+    if hasattr(layout, "props") and "children" in layout.props:
+        for child in layout.props["children"]:
+            if hasattr(child, "props") and child.props.get("id") == "adtd-tab-panel":
+                child.props["value"] = adtd_tab
+    return layout
+
 def nav_disabled(session_id):
     disabled = True
     if session_id is not None:

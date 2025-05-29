@@ -62,6 +62,9 @@ def get_layout(session_id=None):
         dmc.Notification(id='session-manager-notify', title='Session Manager', message='', color='teal', autoClose=2000, style={'display': 'none'}, action=None),
     ])
 
+def display_plugin(session_id):
+    return get_layout(session_id)
+
 # --- Callbacks ---
 def register_callbacks(app):
     from dash import Output, Input, State, ctx, no_update, ALL

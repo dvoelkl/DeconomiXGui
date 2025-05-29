@@ -505,6 +505,9 @@ def register_callbacks(app):
 def nav_disabled(session_id):
     return False # Should always be enabled
 
+def display_plugin(session_id):
+    return get_layout(session_id)
+
 def get_card_reference():
     # Card Reference
     card_ref = dmc.Card(

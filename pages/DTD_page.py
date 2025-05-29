@@ -17,6 +17,29 @@ from utils.session_cache_manager import get_session_cache, session_manager
 def get_layout(session_id, checkApplEnabled=True, n_genes=0):
     return get_dtd_layout(session_id, checkApplEnabled, n_genes)
 
+def display_plugin(session_id):
+    from utils.session_cache_manager import get_session_cache
+    cache = get_session_cache(session_id)
+    applCheckEnabled = False
+    geneCount = 0
+    dtd_tab = "loss"
+    file_loaded = getattr(cache, "DeconomixFile", None) is not None
+    dtd_executed = getattr(cache, "DTDmodel", None) is not None
+    print(f"[DEBUG] Session-Wechsel: DTD_PAGE | session_id={session_id} | file_loaded={file_loaded} | dtd_executed={dtd_executed}")
+    if file_loaded:
+        applCheckEnabled = True
+        geneCount = cache.DeconomixFile.X_mat.shape[0] if hasattr(cache.DeconomixFile, "X_mat") and cache.DeconomixFile.X_mat is not None else 0
+        if dtd_executed:
+            dtd_tab = cache.DTDTab if hasattr(cache, "DTDTab") else "loss"
+    print(f"[DEBUG] DTD Tab aktiv: {dtd_tab}")
+    layout = get_layout(session_id, applCheckEnabled, geneCount)
+    # Tabs-Panel ggf. setzen
+    if hasattr(layout, "props") and "children" in layout.props:
+        for child in layout.props["children"]:
+            if hasattr(child, "props") and child.props.get("id") == "dtd-tab-panel":
+                child.props["value"] = dtd_tab
+    return layout
+
 def nav_disabled(session_id):
     disabled = True
     if session_id is not None:

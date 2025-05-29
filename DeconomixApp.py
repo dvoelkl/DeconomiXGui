@@ -118,7 +118,7 @@ PLUGINS.sort(key=lambda x: x["position"])
 
 # Dynamic navigation
 
-def get_nav_links(session_id=None):
+def get_nav_links(session_id=None, last_selected_tab=None):
     """Erzeuge NavLinks, wobei DTD- und ADTD-Tab nur aktiviert werden, wenn Voraussetzungen erfüllt sind."""
     dtd_disabled = True
     adtd_disabled = True
@@ -186,7 +186,7 @@ layout = dmc.AppShell(
         ),
         dmc.AppShellNavbar(
             id="navbar",
-            children=get_nav_links(),  # Korrekt: children ist eine Liste, nicht [Liste]
+            children=get_nav_links(),
             p="md",
         ),
         dmc.AppShellMain(id="main-content",
@@ -221,50 +221,17 @@ def display_plugin(*args):
     ctx_id = ctx.triggered_id
     session_id = args[-1]  # session_id from dcc.Store
     nav_links = get_nav_links(session_id)
+    layout = None
     for plugin in PLUGINS:
         if plugin["id"] == ctx_id:
-            # Spezialfall: DTD/ADTD Tabs aktivieren je nach Session-Status
-            if plugin["id"] == "nav-dtd_page":
-                from utils.session_cache_manager import get_session_cache
-                cache = get_session_cache(session_id)
-                applCheckEnabled = False
-                geneCount = 0
-                dtd_tab = "loss"
-                file_loaded = getattr(cache, "DeconomixFile", None) is not None
-                dtd_executed = getattr(cache, "DTDmodel", None) is not None
-                print(f"[DEBUG] Session-Wechsel: DTD_PAGE | session_id={session_id} | file_loaded={file_loaded} | dtd_executed={dtd_executed}")
-                if file_loaded:
-                    applCheckEnabled = True
-                    geneCount = cache.DeconomixFile.X_mat.shape[0] if hasattr(cache.DeconomixFile, "X_mat") and cache.DeconomixFile.X_mat is not None else 0
-                    if dtd_executed:
-                        dtd_tab = cache.DTDTab if hasattr(cache, "DTDTab") else "loss"
-                print(f"[DEBUG] DTD Tab aktiv: {dtd_tab}")
-                layout = plugin["module"].get_layout(session_id, applCheckEnabled, geneCount)
-                # Tabs-Panel ggf. setzen
-                if hasattr(layout, "props") and "children" in layout.props:
-                    for child in layout.props["children"]:
-                        if hasattr(child, "props") and child.props.get("id") == "dtd-tab-panel":
-                            child.props["value"] = dtd_tab
-                return layout, nav_links
-            if plugin["id"] == "nav-adtd_page":
-                from utils.session_cache_manager import get_session_cache
-                cache = get_session_cache(session_id)
-                applCheckEnabled = getattr(cache, "DTDmodel", None) is not None
-                adtd_tab = "mixtures"
-                adtd_executed = getattr(cache, "ADTDmodel", None) is not None
-                print(f"[DEBUG] Session-Wechsel: ADTD_PAGE | session_id={session_id} | dtd_executed={applCheckEnabled} | adtd_executed={adtd_executed}")
-                if adtd_executed:
-                    adtd_tab = cache.ADTDTab if hasattr(cache, "ADTDTab") else "mixtures"
-                print(f"[DEBUG] ADTD Tab aktiv: {adtd_tab}")
-                layout = plugin["module"].get_layout(session_id, applCheckEnabled)
-                # Tabs-Panel ggf. setzen
-                if hasattr(layout, "props") and "children" in layout.props:
-                    for child in layout.props["children"]:
-                        if hasattr(child, "props") and child.props.get("id") == "adtd-tab-panel":
-                            child.props["value"] = adtd_tab
-                return layout, nav_links
+            layout = plugin["module"].display_plugin(session_id)
+            nav_links = get_nav_links(session_id, ctx_id)
+            return layout, nav_links    
             return plugin["module"].get_layout(session_id), nav_links
-    return PLUGINS[0]["module"].get_layout(session_id), nav_links
+
+    if layout is None:  # Fallback to first plugin if no match found
+        layout = PLUGINS[0]["module"].get_layout(session_id)
+    return layout, nav_links
 
 ### Callbacks Navigation ###
 @callback(
