@@ -15,6 +15,7 @@ class DCXCache:
         self.DeconomixFile = DeconomixFile
         self.DTDTab = None
         self.ADTDTab = None
+        self.prevent_page_switch = False # Bugfix for Switching tabs after DTD has run
 
         # DTD
         self.DTD_config = DTD_config

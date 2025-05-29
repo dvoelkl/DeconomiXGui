@@ -118,19 +118,9 @@ PLUGINS.sort(key=lambda x: x["position"])
 
 # Dynamic navigation
 
-def get_nav_links(session_id=None, last_selected_tab=None):
+def get_nav_links(session_id=None):
     """Erzeuge NavLinks, wobei DTD- und ADTD-Tab nur aktiviert werden, wenn Voraussetzungen erfüllt sind."""
-    dtd_disabled = True
-    adtd_disabled = True
-    #if session_id:
-    #    try:
-    #        cache = get_session_cache(session_id)
-    #        #dtd_disabled = getattr(cache, "DeconomixFile", None) is None
-    #        # ADTD-Tab nur aktivieren, wenn Datei geladen UND DTDmodel existiert
-    #        adtd_disabled = getattr(cache, "DeconomixFile", None) is None or getattr(cache, "DTDmodel", None) is None
-    #    except Exception:
-    #        dtd_disabled = True
-    #        adtd_disabled = True
+
     links = []
     for plugin in PLUGINS:
         is_disabled = False
@@ -138,13 +128,6 @@ def get_nav_links(session_id=None, last_selected_tab=None):
             is_disabled = plugin["module"].nav_disabled(session_id)
 
         links.append(dmc.NavLink(label=plugin["label"], description=plugin["description"], id=plugin["id"], disabled=is_disabled))
-
-        #if plugin["id"] == "nav-dtd_page":
-        #    links.append(dmc.NavLink(label=plugin["label"], description=plugin["description"], id=plugin["id"], disabled=dtd_disabled))
-        #elif plugin["id"] == "nav-adtd_page":
-        #    links.append(dmc.NavLink(label=plugin["label"], description=plugin["description"], id=plugin["id"], disabled=adtd_disabled))
-        #else:
-        #    links.append(dmc.NavLink(label=plugin["label"], description=plugin["description"], id=plugin["id"]))
     return links
 
 # Notification area for dependency errors
@@ -222,15 +205,19 @@ def display_plugin(*args):
     session_id = args[-1]  # session_id from dcc.Store
     nav_links = get_nav_links(session_id)
     layout = None
-    for plugin in PLUGINS:
-        if plugin["id"] == ctx_id:
-            layout = plugin["module"].display_plugin(session_id)
-            nav_links = get_nav_links(session_id, ctx_id)
-            return layout, nav_links    
-            return plugin["module"].get_layout(session_id), nav_links
+    cache = get_session_cache(session_id)
+    if cache is not None and cache.prevent_page_switch:
+        layout = no_update
+        cache.prevent_page_switch = False  # Reset flag after displaying DTD results
+    else:
+        for plugin in PLUGINS:
+            if plugin["id"] == ctx_id:
+                layout = plugin["module"].display_plugin(session_id)
+                nav_links = get_nav_links(session_id)
+                return layout, nav_links    
 
-    if layout is None:  # Fallback to first plugin if no match found
-        layout = PLUGINS[0]["module"].get_layout(session_id)
+        if layout is None:  # Fallback to first plugin if no match found
+            layout = PLUGINS[0]["module"].get_layout(session_id)
     return layout, nav_links
 
 ### Callbacks Navigation ###

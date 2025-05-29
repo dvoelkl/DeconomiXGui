@@ -31,7 +31,7 @@ def display_plugin(session_id):
         geneCount = cache.DeconomixFile.X_mat.shape[0] if hasattr(cache.DeconomixFile, "X_mat") and cache.DeconomixFile.X_mat is not None else 0
         if dtd_executed:
             dtd_tab = cache.DTDTab if hasattr(cache, "DTDTab") else "loss"
-    print(f"[DEBUG] DTD Tab aktiv: {dtd_tab}")
+
     layout = get_layout(session_id, applCheckEnabled, geneCount)
     # Tabs-Panel ggf. setzen
     if hasattr(layout, "props") and "children" in layout.props:
@@ -92,14 +92,15 @@ def register_callbacks(app):
         Output('dtd-res-corr', 'children', allow_duplicate=True),
         Output('dtd-res-mixtures', 'children', allow_duplicate=True),
         Output('dtd-res-markermap', 'children', allow_duplicate=True),
-        Output('navbar', 'children', allow_duplicate=True),  # NEU: Navbar-Output
+        Output('navbar', 'children', allow_duplicate=True), 
         Input('dtd-exec-overlay', 'visible'),
         State('session-id', 'data'),
         State('dtd-par-check-ApplData', 'checked'),
         State('dtd-par-num-genes', 'value'),
+        State('dtd-tab-panel', 'value'),
         prevent_initial_call=True
     )
-    def runDTD(exec_overlay_visible, session_id, runOnApplChecked, nGenes):
+    def runDTD(exec_overlay_visible, session_id, runOnApplChecked, nGenes, current_tab):
         cache = get_session_cache(session_id)
         if "dtd-exec-overlay" == ctx.triggered_id and exec_overlay_visible is True:
             try:
@@ -132,14 +133,18 @@ def register_callbacks(app):
                 dtd_tab_corr = get_tab_dtd_correlation(cache)
                 dtd_tab_mix = get_tab_dtd_mixture(cache, runOnApplChecked)
                 dtd_tab_marker = get_tab_dtd_markermap(cache)
-                # Persistiere Session nach erfolgreichem DTD-Lauf
+                
                 session_manager.save_session(session_id)
-                nav_links = get_nav_links(session_id)  # Navbar aktualisieren
+                nav_links = get_nav_links(session_id)
+
+                cache.prevent_page_switch = True # Bugfix for Switching tabs after DTD has run
                 return False, False, dtd_tab_loss, dtd_tab_corr, dtd_tab_mix, dtd_tab_marker, nav_links
             except Exception as e:
                 return False, False, f"Error: {e}", None, None, None, no_update
         else:
             return no_update, no_update, no_update, no_update, no_update, no_update, no_update
+
+
 
     @app.callback(
         Output("tab-dtd-scatter-train", "data"),
@@ -381,7 +386,8 @@ def get_dtd_layout(session_id, applCheckEnabled, geneCount):
                             color='blue',
                             orientation='horizontal',
                             variant='default',
-                            value="loss"
+                            value="loss",
+                            id="dtd-tab-panel"
                         )
                     )
                 ]
