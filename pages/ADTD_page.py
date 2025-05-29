@@ -25,16 +25,33 @@ def display_plugin(session_id):
     applCheckEnabled = getattr(cache, "DTDmodel", None) is not None
     adtd_tab = "mixtures"
     adtd_executed = getattr(cache, "ADTDmodel", None) is not None
-    print(f"[DEBUG] Session-Wechsel: ADTD_PAGE | session_id={session_id} | dtd_executed={applCheckEnabled} | adtd_executed={adtd_executed}")
-    if adtd_executed:
-        adtd_tab = cache.ADTDTab if hasattr(cache, "ADTDTab") else "mixtures"
-    print(f"[DEBUG] ADTD Tab aktiv: {adtd_tab}")
+
     layout = get_layout(session_id, applCheckEnabled)
-    # Tabs-Panel ggf. setzen
-    if hasattr(layout, "props") and "children" in layout.props:
-        for child in layout.props["children"]:
-            if hasattr(child, "props") and child.props.get("id") == "adtd-tab-panel":
-                child.props["value"] = adtd_tab
+
+    if hasattr(cache, "ADTD_results_cache") and cache.ADTD_results_cache:
+        first_key = next(iter(cache.ADTD_results_cache.keys()))
+        dataset, lambda1, lambda2, nIter, Cstatic, Deltastatic = first_key
+        cache.ADTD_config.Dataset = dataset
+        layout["adtd-dataset-combo"].value = dataset
+        cache.ADTD_config.lambda1 = lambda1
+        layout["adtd-par-lambda1"].value = lambda1
+        cache.ADTD_config.lambda2 = lambda2
+        layout["adtd-par-lambda2"].value = lambda2
+        cache.ADTD_config.nIter = nIter
+        layout["adtd-par-iterations"].value = nIter
+        cache.ADTD_config.Cstatic = Cstatic
+        layout["adtd-par-check-Cstatic"].checked = Cstatic
+        cache.ADTD_config.Deltastatic = Deltastatic
+        layout["adtd-par-check-Deltastatic"].checked = Deltastatic
+        layout['adtd-res-mixtures'].children = cache.get_adtd_result(dataset, lambda1, lambda2, nIter, Cstatic, Deltastatic)['tab_mixture'] 
+        layout['adtd-res-gr'].children = cache.get_adtd_result(dataset, lambda1, lambda2, nIter, Cstatic, Deltastatic)['tab_gr']
+        layout['adtd-tab-gr'].disabled = Deltastatic
+        layout["adtd-skeleton"].visible = False
+        layout["adtd-tab-panel"].value = "mixtures"
+    
+    print(f"[DEBUG] Session-Wechsel: ADTD_PAGE | session_id={session_id} | dtd_executed={applCheckEnabled} | adtd_executed={adtd_executed}")
+    print(f"[DEBUG] ADTD Tab aktiv: {adtd_tab}")
+    
     return layout
 
 def nav_disabled(session_id):
