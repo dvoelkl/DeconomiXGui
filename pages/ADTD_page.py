@@ -205,7 +205,7 @@ def register_callbacks(app):
             'C_est': cache.ADTDmodel.C_est.copy(),
             'c_est': cache.ADTDmodel.c_est.copy()
         })
-        # Persistiere Session nach erfolgreichem ADTD-Lauf
+        # Save session state
         session_manager.save_session(session_id)
         return tab_mixture, tab_gr, 'mixtures', hps_disabled, Deltastatic, False
 

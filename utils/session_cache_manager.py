@@ -1,8 +1,8 @@
 """
 SessionCacheManager for DeconomiX GUI
 Manages per-session DCXCache objects, persistence, and session operations.
-All code and comments in English.
 """
+
 import os
 import threading
 import pickle
@@ -24,6 +24,9 @@ class SessionCacheManager:
         os.makedirs(self.cache_dir, exist_ok=True)
         os.makedirs(self.archive_dir, exist_ok=True)
         self._load_all_sessions()
+
+        self.max_sessions = -1
+        self.session_max_age_days = -1
 
     def _log(self, msg):
         if self.debug:
@@ -181,7 +184,7 @@ class SessionCacheManager:
             return session_id
 
     def cleanup_sessions(self, max_sessions=None, max_age_days=None):
-        # Optional: implement auto-cleanup logic based on config
+        raise NotImplementedError("Automated cleanup not implemented yet")
         pass
 
 def get_session_cache(session_id):

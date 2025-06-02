@@ -8,36 +8,17 @@
 ######################### IMPORTS #########################
 
 import dash_mantine_components as dmc
-import deconomix.methods
-from dash import Dash, Input, Output, State, callback, _dash_renderer, dcc, html, ctx, DiskcacheManager, set_props, \
-    no_update
-import plotly.graph_objects as go
-
-import matplotlib
-import numpy as np
+from dash import Dash, Input, Output, State, callback, _dash_renderer, dcc, html, ctx, no_update
 
 import base64
 import io
 import pandas as pd
 import scanpy as sc
 
-import configparser
-
-# Imports for Deconomix
-from utils.DeconomixFile import DeconomixFile
-from utils.DTD_config import DTDConfig
-from utils.ADTD_config import ADTDConfig
-from utils.DeconomixCache import DCXCache
-from scipy.stats import spearmanr
-
-# Import from Deconomix
-from deconomix.utils import simulate_data, calculate_estimated_composition
-from deconomix.methods import DTD
-from utils.session_cache_manager import get_session_cache, session_manager
+from utils.session_cache_manager import get_session_cache
 
 import importlib
 import os
-import inspect
 import uuid
 
 #########################  #########################
@@ -119,7 +100,7 @@ PLUGINS.sort(key=lambda x: x["position"])
 # Dynamic navigation
 
 def get_nav_links(session_id=None):
-    """Erzeuge NavLinks, wobei DTD- und ADTD-Tab nur aktiviert werden, wenn Voraussetzungen erfüllt sind."""
+    """Dynamically generate and activate navigation links for all registered plug-ins."""
 
     links = []
     for plugin in PLUGINS:
@@ -288,9 +269,6 @@ def check_gene_index_consistency(*dfs):
                 return False, i, j
     return True, None, None
 
-######################### CALLBACKS #########################
-
-# All upload and modal callbacks have been moved to the Uploading plug-in.
 
 server = app.server
 
