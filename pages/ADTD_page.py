@@ -14,6 +14,7 @@ import numpy as np
 import matplotlib
 from matplotlib.colors import CenteredNorm
 from utils.session_cache_manager import get_session_cache, session_manager
+from dash.exceptions import PreventUpdate
 
 def get_layout(session_id, checkApplEnabled=True):
     cache = get_session_cache(session_id)
@@ -62,7 +63,7 @@ def nav_disabled(session_id):
     return disabled
 
 def register_callbacks(app):
-    from dash import Output, Input, State, no_update, ctx
+    from dash import Output, Input, State, no_update, ctx, ALL, callback_context
     import dash_mantine_components as dmc
     from utils.DeconomixFile import DeconomixFile
     import numpy as np
@@ -343,6 +344,117 @@ def register_callbacks(app):
         cache = get_session_cache(session_id)
         cache.ADTDTab = currADTDTab
 
+    
+    @app.callback(
+        Output('adtd-par-lambda1', 'value', allow_duplicate=True),
+        Output('adtd-par-lambda2', 'value', allow_duplicate=True),
+        Output('adtd-par-iterations', 'value', allow_duplicate=True),
+        Output('adtd-dataset-combo', 'value', allow_duplicate=True),
+        Output('adtd-par-check-Cstatic', 'checked', allow_duplicate=True),
+        Output('adtd-par-check-Deltastatic', 'checked', allow_duplicate=True),
+        Output('adtd-tab-panel', 'value', allow_duplicate=True),
+        Output('adtd-previous-runs-modal', 'opened', allow_duplicate=True),
+        Input({'type': 'adtd-show-previous', 'index': ALL}, 'n_clicks'),
+        State('session-id', 'data'),
+        prevent_initial_call=True
+    )
+    def show_previous_run(n_clicks_list, session_id):
+        ctx = callback_context
+        if not ctx.triggered or not any(n_clicks_list):
+            raise PreventUpdate
+        btn_id = ctx.triggered[0]['prop_id'].split('.')[0]
+        import json
+        btn_idx = json.loads(btn_id)['index']
+        cache = get_session_cache(session_id)
+        key = list(cache.ADTD_results_cache.keys())[btn_idx]
+        dataset, lambda1, lambda2, nIter, Cstatic, Deltastatic = key
+        return lambda1, lambda2, nIter, dataset, Cstatic, Deltastatic, 'mixtures', False
+
+    @app.callback(
+        Output("adtd-previous-runs-modal", "opened", allow_duplicate=True),
+        Input("adtd-show-previous-modal-btn", "n_clicks"),
+        Input("adtd-previous-runs-modal", "close"),
+        State("adtd-previous-runs-modal", "opened"),
+        prevent_initial_call=True
+    )
+    def toggle_previous_runs_modal(open_btn, close_evt, opened):
+        ctx_id = ctx.triggered_id
+        if ctx_id == "adtd-show-previous-modal-btn":
+            return True
+        elif ctx_id == "adtd-previous-runs-modal":
+            return False
+        return opened
+
+    @app.callback(
+        Output("adtd-previous-runs-table", "children", allow_duplicate=True),
+        Input("adtd-previous-runs-modal", "opened"),
+        State('session-id', 'data'),
+        State('adtd-dataset-combo', 'value'),
+        State('adtd-par-lambda1', 'value'),
+        State('adtd-par-lambda2', 'value'),
+        State('adtd-par-iterations', 'value'),
+        State('adtd-par-check-Cstatic', 'checked'),
+        State('adtd-par-check-Deltastatic', 'checked'),
+        prevent_initial_call=True
+    )
+    def fill_previous_runs_table(opened, session_id, current_dataset, current_lambda1, current_lambda2, current_nIter, current_Cstatic, current_Deltastatic):
+        if not opened:
+            return no_update
+        cache = get_session_cache(session_id)
+        runs = getattr(cache, "ADTD_results_cache", None)
+        if not runs or len(runs) == 0:
+            return dmc.Alert("No previous runs found.", color="gray", variant="light")
+        # Table header
+        header = dmc.Group([
+            dmc.Text("Dataset", fw=700, w=120),
+            dmc.Text("Lambda1", fw=700, w=100),
+            dmc.Text("Lambda2", fw=700, w=100),
+            dmc.Text("Iterations", fw=700, w=100),
+            dmc.Text("C static", fw=700, w=80),
+            dmc.Text("Delta static", fw=700, w=100),
+            dmc.Text("", w=120)
+        ], gap="xs", mb=8)
+        # Table rows
+        rows = []
+        # Mapping for dataset display names
+        dataset_display = {"train": "Training", "test": "Testing", "appl": "Application"}
+        for idx, key in enumerate(runs.keys()):
+            dataset, lambda1, lambda2, nIter, Cstatic, Deltastatic = key
+            is_active = (
+                str(dataset) == str(current_dataset)
+                and str(lambda1) == str(current_lambda1)
+                and str(lambda2) == str(current_lambda2)
+                and str(nIter) == str(current_nIter)
+                and str(Cstatic) == str(current_Cstatic)
+                and str(Deltastatic) == str(current_Deltastatic)
+            )
+            display_dataset = dataset_display.get(str(dataset), str(dataset))
+            paper_style = {
+                "backgroundColor": "#e6f7ff",
+                "border": "2px solid #228be6",
+                "transition": "background 0.2s, border 0.2s"
+            } if is_active else {"backgroundColor": "#f8fafc", "transition": "background 0.2s, border 0.2s"}
+            rows.append(
+                dmc.Paper(
+                    dmc.Group([
+                        dmc.Text(display_dataset, w=120),
+                        dmc.Text(str(lambda1), w=100),
+                        dmc.Text(str(lambda2), w=100),
+                        dmc.Text(str(nIter), w=100),
+                        dmc.Text(str(Cstatic), w=80),
+                        dmc.Text(str(Deltastatic), w=100),
+                        dmc.Button("Restore", id={"type": "adtd-show-previous", "index": idx}, size="xs", color="blue", variant="outline", ml=8, style={"verticalAlign": "middle"})
+                    ], gap="xs", align="center", mb=0, style={"width": "100%"}),
+                    withBorder=True,
+                    shadow="xs",
+                    radius="md",
+                    p="xs",
+                    mb=6,
+                    style=paper_style
+                )
+            )
+        return dmc.Stack([header] + rows, gap=0)
+
 def get_adtd_layout(session_id, applCheckEnabled):
     cache = get_session_cache(session_id)
     if getattr(cache, 'DeconomixFile', None) is None:
@@ -420,12 +532,26 @@ def get_adtd_layout(session_id, applCheckEnabled):
                                                 allowDecimal=False, allowNegative=False),
                                 dmc.Button("Run Lambda2 Search", id="adtd-run-hyper", fullWidth=True, mt=10),
                                 dmc.Button("Execute ADTD", id="adtd-run", fullWidth=True, mt=10),
+                                dmc.Button("Show Previous Runs", id="adtd-show-previous-modal-btn", fullWidth=True, mt=10, color="gray"),
                             ],
                             legend="ADTD",
                             disabled=False,
                         )
                     ])
                 ]
+            ),
+            # Modal for previous runs
+            dmc.Modal(
+                id="adtd-previous-runs-modal",
+                title="Previous ADTD Runs",
+                centered=True,
+                size="xl",
+                styles={"modal": {"minWidth": 800, "maxWidth": 1100}},
+                children=[
+                    html.Div(id="adtd-previous-runs-table")
+                ],
+                opened=False,
+                closeOnClickOutside=True,
             ),
             dmc.Skeleton(
                 id="adtd-skeleton",
@@ -510,7 +636,7 @@ def get_tab_adtd_mixture(cache, dataset, hidden):
     complete_dataset = dataset.copy()
     complete_dataset.loc['hidden'] = hidden.iloc[0]
 
-    combobox_mixture_items = fill_combo_mixtures(complete_dataset)
+    combobox_mixtures_items = fill_combo_mixtures(complete_dataset)
 
     selected_data = cache.ADTDmodel.C_est.copy()
     selected_data.loc['hidden'] = cache.ADTDmodel.c_est.iloc[0]
@@ -547,7 +673,7 @@ def get_tab_adtd_mixture(cache, dataset, hidden):
                     dmc.Select(label="Mixture",
                                id="adtd-mix-mixture-combo",
                                value='m1',
-                               data=combobox_mixture_items,
+                               data=combobox_mixtures_items,
                                allowDeselect=False),
                     dmc.Button("Download Estimates",
                                 id="adtd-mix-dataset-button-download",

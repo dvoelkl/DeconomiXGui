@@ -57,7 +57,7 @@ class DCXCache:
         self.ADTD_config = ADTDConfig()
         self.ADTD_HPS_model = None
         self.ADTDmodel = None
-        self.ADTD_results_cache = {}  # Cache wird beim Reset gelöscht
+        self.ADTD_results_cache = {}
 
     def clearAll(self):
         print("[DeconomixCache] clearAll called")
