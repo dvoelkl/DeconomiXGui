@@ -1,4 +1,3 @@
-
 import dash_mantine_components as dmc
 from dash import html, dcc, Output, Input, State, callback, no_update, ALL
 from utils.session_cache_manager import session_manager
@@ -28,7 +27,7 @@ def get_layout(session_id=None):
                 dmc.Text(s.get('created', ''), size='xs', c='dimmed', style={"minWidth": 120}),
                 dmc.Text(s.get('status', 'active'), size='xs', c='green' if not archived else 'orange', style={"minWidth": 70}),
                 dmc.Group([
-                    dmc.Button('Switch', id={'type': 'switch-session', 'index': s['session_id']}, size='xs', variant='filled' if is_active else 'outline', color='teal' if is_active else 'gray', disabled=is_active),
+                    dmc.Button('Switch', id={'type': 'switch-session', 'index': s['session_id']}, size='xs', variant='filled' if is_active else 'outline', color='teal' if is_active else 'gray', disabled=is_active or archived),
                     dmc.Button('Rename', id={'type': 'rename-session', 'index': s['session_id']}, size='xs', color='blue'),
                     dmc.Button('Archive' if not archived else 'Restore', id={'type': 'archive-session', 'index': s['session_id']}, size='xs', color='orange'),
                     dmc.Button('Delete', id={'type': 'delete-session', 'index': s['session_id']}, size='xs', color='red', variant='outline', disabled=is_active),
@@ -239,18 +238,25 @@ def register_callbacks(app):
         triggered = ctx.triggered[0]['prop_id'].split('.')[0]
         target_id = eval(triggered)
         sid = target_id['index']
-        # Check if session is archived or active
         archived_ids = [s['session_id'] for s in session_manager.list_archived_sessions()]
         if sid in archived_ids:
             session_manager.restore_session(sid)
             msg = f'Session {sid} restored.'
+            layout = get_layout(session_id)
+            return layout, msg, {'display': 'block'}, session_id
         else:
             if sid == session_id:
-                return no_update, 'Cannot archive active session.', {'display': 'block'}, no_update
-            session_manager.archive_session(sid)
-            msg = f'Session {sid} archived.'
-        layout = get_layout(session_id)
-        return layout, msg, {'display': 'block'}, session_id
+                # Aktive Session wird archiviert: Neue Session erzeugen und aktivieren
+                session_manager.archive_session(sid)
+                new_id = session_manager.create_session()
+                layout = get_layout(new_id)
+                msg = f'Active session {sid} archived. New session {new_id} created and activated.'
+                return layout, msg, {'display': 'block'}, new_id
+            else:
+                session_manager.archive_session(sid)
+                layout = get_layout(session_id)
+                msg = f'Session {sid} archived.'
+                return layout, msg, {'display': 'block'}, session_id
 
     # Callback: Open delete confirm dialog
     @app.callback(

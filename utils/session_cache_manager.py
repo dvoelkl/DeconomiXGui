@@ -9,6 +9,7 @@ import pickle
 import uuid
 import datetime
 import json
+import shutil
 from utils.DeconomixCache import DCXCache
 from utils.DTD_config import DTDConfig
 from utils.ADTD_config import ADTDConfig
@@ -32,14 +33,15 @@ class SessionCacheManager:
         if self.debug:
             print(f"[SessionCacheManager] {msg}")
 
-    def _session_path(self, session_id):
-        return os.path.join(self.cache_dir, f"{session_id}.pkl")
-
-    def _archive_path(self, session_id):
-        return os.path.join(self.archive_dir, f"{session_id}.pkl")
-
-    def _meta_path(self, session_id):
+    def _meta_path(self, session_id, archived=False):
+        if archived:
+            return os.path.join(self.archive_dir, f"{session_id}.meta.json")
         return os.path.join(self.cache_dir, f"{session_id}.meta.json")
+
+    def _session_path(self, session_id, archived=False):
+        if archived:
+            return os.path.join(self.archive_dir, f"{session_id}.pkl")
+        return os.path.join(self.cache_dir, f"{session_id}.pkl")
 
     def _save_meta(self, session_id):
         meta = self._meta.get(session_id)
@@ -102,39 +104,71 @@ class SessionCacheManager:
         with self._lock:
             self._sessions.pop(session_id, None)
             self._meta.pop(session_id, None)
-            try:
-                os.remove(self._session_path(session_id))
-                os.remove(self._meta_path(session_id))
-                self._log(f"Deleted session {session_id}")
-            except FileNotFoundError:
-                pass
+            # Try both locations
+            for archived in [False, True]:
+                try:
+                    os.remove(self._session_path(session_id, archived=archived))
+                except FileNotFoundError:
+                    pass
+                try:
+                    os.remove(self._meta_path(session_id, archived=archived))
+                except FileNotFoundError:
+                    pass
+            self._log(f"Deleted session {session_id}")
 
     def archive_session(self, session_id):
         with self._lock:
-            if session_id in self._sessions:
-                with open(self._archive_path(session_id), "wb") as f:
-                    pickle.dump(self._sessions[session_id], f)
-                self.delete_session(session_id)
-                self._log(f"Archived session {session_id}")
+            # Move .pkl
+            src_pkl = self._session_path(session_id)
+            dst_pkl = self._session_path(session_id, archived=True)
+            if os.path.exists(src_pkl):
+                shutil.move(src_pkl, dst_pkl)
+            # Move .meta.json
+            src_meta = self._meta_path(session_id)
+            dst_meta = self._meta_path(session_id, archived=True)
+            if os.path.exists(src_meta):
+                shutil.move(src_meta, dst_meta)
+            self._sessions.pop(session_id, None)
+            self._meta.pop(session_id, None)
+            self._log(f"Archived session {session_id}")
 
     def restore_session(self, session_id):
         with self._lock:
-            archive_path = self._archive_path(session_id)
-            if os.path.exists(archive_path):
-                with open(archive_path, "rb") as f:
+            # Move .pkl
+            src_pkl = self._session_path(session_id, archived=True)
+            dst_pkl = self._session_path(session_id)
+            if os.path.exists(src_pkl):
+                shutil.move(src_pkl, dst_pkl)
+            # Move .meta.json
+            src_meta = self._meta_path(session_id, archived=True)
+            dst_meta = self._meta_path(session_id)
+            if os.path.exists(src_meta):
+                shutil.move(src_meta, dst_meta)
+            # Reload session
+            try:
+                with open(dst_pkl, "rb") as f:
                     cache = pickle.load(f)
                 self._sessions[session_id] = cache
-                self._meta[session_id] = {"created": os.path.getctime(archive_path), "status": "active"}
-                os.remove(archive_path)
-                self.save_session(session_id)
-                self._save_meta(session_id)
+                meta = self._load_meta(session_id)
+                if meta:
+                    self._meta[session_id] = meta
+                else:
+                    self._meta[session_id] = {"created": os.path.getctime(dst_pkl), "status": "active"}
                 self._log(f"Restored session {session_id}")
+            except Exception as e:
+                self._log(f"Failed to restore session {session_id}: {e}")
 
     def list_sessions(self):
         with self._lock:
-            return [
-                {"session_id": sid, **self._meta[sid]} for sid in self._sessions.keys()
-            ]
+            sessions = []
+            for fname in os.listdir(self.cache_dir):
+                if fname.endswith(".pkl"):
+                    session_id = fname[:-4]
+                    meta = self._load_meta(session_id)
+                    if meta is None:
+                        meta = {"created": os.path.getctime(self._session_path(session_id)), "status": "active"}
+                    sessions.append({"session_id": session_id, **meta})
+            return sessions
 
     def list_archived_sessions(self):
         with self._lock:
@@ -142,21 +176,37 @@ class SessionCacheManager:
             for fname in os.listdir(self.archive_dir):
                 if fname.endswith(".pkl"):
                     session_id = fname[:-4]
-                    archived.append({
-                        "session_id": session_id,
-                        "created": os.path.getctime(self._archive_path(session_id)),
-                        "status": "archived"
-                    })
+                    meta = None
+                    try:
+                        with open(self._meta_path(session_id, archived=True), "r") as f:
+                            meta = json.load(f)
+                    except Exception:
+                        meta = {"created": os.path.getctime(self._session_path(session_id, archived=True)), "status": "archived"}
+                    archived.append({"session_id": session_id, **meta, "status": "archived"})
             return archived
 
     def rename_session(self, session_id, new_name):
         with self._lock:
-            if session_id in self._meta:
+            # Prüfe, ob Session aktiv oder archiviert ist
+            meta = self._meta.get(session_id)
+            if meta is not None:
                 self._meta[session_id]["name"] = new_name
                 if session_id in self._sessions:
                     setattr(self._sessions[session_id], "session_name", new_name)
                 self._save_meta(session_id)
                 self._log(f"Renamed session {session_id} to {new_name}")
+            else:
+                # Archivierte Session: Metadaten-Datei im Archiv-Ordner anpassen
+                meta_path = self._meta_path(session_id, archived=True)
+                try:
+                    with open(meta_path, "r") as f:
+                        meta_arch = json.load(f)
+                    meta_arch["name"] = new_name
+                    with open(meta_path, "w") as f:
+                        json.dump(meta_arch, f)
+                    self._log(f"Renamed archived session {session_id} to {new_name}")
+                except Exception as e:
+                    self._log(f"Failed to rename archived session {session_id}: {e}")
 
     def export_session(self, session_id, export_path):
         with self._lock:
