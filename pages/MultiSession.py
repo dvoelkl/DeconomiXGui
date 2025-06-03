@@ -1,6 +1,7 @@
 import dash_mantine_components as dmc
 from dash import html, dcc, Output, Input, State, callback, no_update, ALL
 from utils.session_cache_manager import session_manager
+import datetime
 
 # --- Layout ---
 def get_layout(session_id=None):
@@ -18,13 +19,22 @@ def get_layout(session_id=None):
 
     def session_row(s, archived=False):
         is_active = (s['session_id'] == session_id)
+        # Format creation date
+        created_raw = s.get('created', '')
+        created_str = ''
+        if created_raw:
+            try:
+                dt = datetime.datetime.fromisoformat(str(created_raw))
+                created_str = dt.strftime('%Y-%m-%d %H:%M')
+            except Exception:
+                created_str = str(created_raw)
         # Zeige den Namen aus den Metadaten, nicht die session_id
         session_name = s.get('name', f"Session {s['session_id'][:8]}")
         return dmc.Paper([
             dmc.Group([
                 dmc.Text(session_name, fw=700 if is_active else 400, c='teal' if is_active else 'default', style={"minWidth": 140}),
                 dmc.Text(s['session_id'], size='xs', c='dimmed', style={"minWidth": 120}),
-                dmc.Text(s.get('created', ''), size='xs', c='dimmed', style={"minWidth": 120}),
+                dmc.Text(created_str, size='xs', c='dimmed', style={"minWidth": 120}),
                 dmc.Text(s.get('status', 'active'), size='xs', c='green' if not archived else 'orange', style={"minWidth": 70}),
                 dmc.Group([
                     dmc.Button('Switch', id={'type': 'switch-session', 'index': s['session_id']}, size='xs', variant='filled' if is_active else 'outline', color='teal' if is_active else 'gray', disabled=is_active or archived),
