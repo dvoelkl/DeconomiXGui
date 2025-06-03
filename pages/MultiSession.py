@@ -29,7 +29,7 @@ def get_layout(session_id=None):
                 dmc.Group([
                     dmc.Button('Switch', id={'type': 'switch-session', 'index': s['session_id']}, size='xs', variant='filled' if is_active else 'outline', color='teal' if is_active else 'gray', disabled=is_active or archived),
                     dmc.Button('Rename', id={'type': 'rename-session', 'index': s['session_id']}, size='xs', color='blue'),
-                    dmc.Button('Archive' if not archived else 'Restore', id={'type': 'archive-session', 'index': s['session_id']}, size='xs', color='orange'),
+                    dmc.Button('Archive' if not archived else 'Restore', id={'type': 'archive-session', 'index': s['session_id']}, size='xs', color='orange', disabled=is_active),
                     dmc.Button('Delete', id={'type': 'delete-session', 'index': s['session_id']}, size='xs', color='red', variant='outline', disabled=is_active),
                 ], gap='xs'),
             ], gap='md', align='center'),
