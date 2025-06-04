@@ -1,6 +1,6 @@
 ####################################################
 #
-# Main entry point for DeconomiX GUI application
+# Main entry point for Deconomix GUI application
 #
 ####################################################
 
@@ -142,7 +142,7 @@ layout = dmc.AppShell(
                         opened=True,
                     ),
                     dmc.Image(src=app.get_asset_url(logo_filename), h=40),
-                    dmc.Title("DeconomiX", c="red"),
+                    dmc.Title("Deconomix", c="red"),
                 ],
                 h="100%",
                 px="md",
@@ -273,7 +273,7 @@ def check_gene_index_consistency(*dfs):
 server = app.server
 
 if __name__ == "__main__":
-    app.title = "DeconomiX"
+    app.title = "Deconomix"
 
     app.run(debug=True)
     #app.run_server(debug=False)

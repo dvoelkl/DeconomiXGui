@@ -1,6 +1,6 @@
 ####################################################
 #
-# Uploading page for DeconomiX GUI application
+# Uploading page for Deconomix GUI application
 #
 ####################################################
 
@@ -21,7 +21,6 @@ def get_indicator_style(uploaded):
 def all_required_fields_filled(*fields):
     return all(fields)
 
-# --- Helper function for upload parsing (migrated from DeconomixApp.py) ---
 def decode_input(content):
     if content is None:
         return None
@@ -151,7 +150,7 @@ def get_layout(session_id=None):
                 children=[
                     dmc.Stack([
                         dmc.Text(
-                            "Convert data to the DeconomiX .dcx format. Supported input types: CSV (with header and index) or AnnData (.h5ad) files. Required fields: Reference Profile X, Single Cell Train Data, Single Cell Test Data. Optional: Application Data. All fields accept either CSV or AnnData.",
+                            "Convert data to the Deconomix .dcx format. Supported input types: CSV (with header and index) or AnnData (.h5ad) files. Required fields: Reference Profile X, Single Cell Train Data, Single Cell Test Data. Optional: Application Data. All fields accept either CSV or AnnData.",
                             size="sm",
                             mb=10
                         ),
@@ -255,7 +254,7 @@ def get_layout(session_id=None):
         dmc.Modal(
             title="File format not supported",
             id="upload-file-not-supported-alert",
-            children=dmc.Text("The uploaded file could not be parsed as DeconomiX File!"),
+            children=dmc.Text("The uploaded file could not be parsed as Deconomix File!"),
         )
         ]
     )
@@ -522,7 +521,7 @@ def get_card_reference():
             ),
             dmc.Text("Reference Matrix", fw=500),
             dmc.Text(
-                "Reference Matrix used for DeconomiX",
+                "Reference Matrix used for Deconomix",
                 size="sm",
                 c="dimmed",
             ),
@@ -733,7 +732,7 @@ def get_file_properties_layout(filename, modification_date, file):
                             children=[
                                 dmc.Text(size="sm", mb=5, children="File Name:"),
                                 dmc.Text(size="sm", mb=5, children=f"{filename}"),
-                                dmc.Text(size="sm", mb=5, children="DeconomiX file version:"),
+                                dmc.Text(size="sm", mb=5, children="Deconomix file version:"),
                                 dmc.Text(size="sm", mb=5, children=f"{file.__VERSION__}"),
                                 dmc.Text(size="sm", mb=5, children="Created by:"),
                                 dmc.Text(size="sm", mb=5, children=f"{file.Author}")

@@ -1,6 +1,6 @@
 ####################################################
 #
-# DTD page for DeconomiX GUI application
+# DTD page for Deconomix GUI application
 #
 ####################################################
 
