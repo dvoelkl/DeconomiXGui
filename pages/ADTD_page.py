@@ -15,6 +15,7 @@ import matplotlib
 from matplotlib.colors import CenteredNorm
 from utils.session_cache_manager import get_session_cache, session_manager
 from dash.exceptions import PreventUpdate
+from utils.HelpTooltips import get_HelpTooltipsManager, HelpTooltipsManager
 
 def get_layout(session_id, checkApplEnabled=True):
     cache = get_session_cache(session_id)
@@ -492,16 +493,32 @@ def get_adtd_layout(session_id, applCheckEnabled):
                         dmc.Fieldset(
                             children=[
                                 dmc.Group([
-                                    dmc.Checkbox(id="adtd-par-check-Cstatic", label="C static", labelPosition='left',
-                                                 mb=10, checked=False),
-                                    dmc.Checkbox(id="adtd-par-check-Deltastatic", label="Delta static",
-                                                 labelPosition='left', mb=10, checked=False),
+                                    dmc.Tooltip(
+                                        dmc.Checkbox(id="adtd-par-check-Cstatic", label="C static", labelPosition='left',
+                                                     mb=10, checked=False),
+                                        label=get_HelpTooltipsManager().get_tooltip_content("adtd-par-check-Cstatic"),
+                                        openDelay=get_HelpTooltipsManager().delayTime
+                                    ),
+                                    dmc.Tooltip(
+                                        dmc.Checkbox(id="adtd-par-check-Deltastatic", label="Delta static",
+                                                     labelPosition='left', mb=10, checked=False),
+                                        label=get_HelpTooltipsManager().get_tooltip_content("adtd-par-check-Deltastatic"),
+                                        openDelay=get_HelpTooltipsManager().delayTime
+                                    ),
                                 ]),
+                                dmc.Tooltip(
                                 dmc.NumberInput(id="adtd-par-lambda1", label="Lambda 1", value=1e-6,
                                                 min=1e-25, allowDecimal=True, allowNegative=False),
+                                label=get_HelpTooltipsManager().get_tooltip_content("adtd-par-lambda1"),
+                                openDelay=get_HelpTooltipsManager().delayTime
+                                ),
+                                dmc.Tooltip(
                                 dmc.NumberInput(id="adtd-par-lambda2",
                                                 label="Lambda 2", value=1e-6, min=1e-25,
-                                                allowDecimal=True, allowNegative=False)
+                                                allowDecimal=True, allowNegative=False),
+                                label=get_HelpTooltipsManager().get_tooltip_content("adtd-par-lambda2"),
+                                openDelay=get_HelpTooltipsManager().delayTime
+                                ),
                             ],
                             legend="General parameters",
                             disabled=False,
@@ -530,7 +547,11 @@ def get_adtd_layout(session_id, applCheckEnabled):
                                 dmc.NumberInput(id="adtd-par-iterations",
                                                 label="Max iterations", value=100, min=1,
                                                 allowDecimal=False, allowNegative=False),
+                                dmc.Tooltip(
                                 dmc.Button("Run Lambda2 Search", id="adtd-run-hyper", fullWidth=True, mt=10),
+                                label=get_HelpTooltipsManager().get_tooltip_content("adtd-run-hyper"),
+                                openDelay=get_HelpTooltipsManager().delayTime
+                                ),
                                 dmc.Button("Execute ADTD", id="adtd-run", fullWidth=True, mt=10),
                                 dmc.Button("Show Previous Runs", id="adtd-show-previous-modal-btn", fullWidth=True, mt=10, color="gray"),
                             ],

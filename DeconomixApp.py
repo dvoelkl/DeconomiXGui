@@ -16,6 +16,7 @@ import pandas as pd
 import scanpy as sc
 
 from utils.session_cache_manager import get_session_cache
+from utils.HelpTooltips import get_HelpTooltipsManager, HelpTooltipsManager
 
 import importlib
 import os
@@ -80,8 +81,12 @@ while PLUGIN_CONFIGS:
                     "description": description,
                     "id": nav_id,
                     "module": module,
+                    "tooltip_config": config.get("tooltip_config", ""),
                 })
                 REGISTERED.add(modname)
+                if config.get("tooltip_config", "") != '':
+                    get_HelpTooltipsManager().register_tooltip_config_file(PAGES_PATH + config.get("tooltip_config", ""))
+
             PLUGIN_CONFIGS.remove(config)
             progress = True
     if not progress:
