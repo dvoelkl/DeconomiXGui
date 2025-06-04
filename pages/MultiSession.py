@@ -100,8 +100,6 @@ def register_callbacks(app):
             return no_update, no_update, no_update, '', {'display': 'none'}
         new_id = session_manager.create_session()
         #layout = get_layout(new_id)
-        # Debug: Log relevant information
-        print(f"[DEBUG] Create session clicked. Current session_id: {session_id}, New session_id: {new_id}")
 
         active_plugin = 'nav-uploading'
         try:
@@ -150,9 +148,6 @@ def register_callbacks(app):
             return no_update, no_update, no_update, '', {'display': 'none'}
         triggered = ctx.triggered[0]['prop_id'].split('.')[0]
         target_id = eval(triggered)  # {'type': 'switch-session', 'index': ...}
-        print(f"[DEBUG] Switch-Session Event: triggered by {triggered}")
-        print(f"[DEBUG] Current session_id: {session_id}")
-        print(f"[DEBUG] Target session_id: {target_id['index']}")
         new_id = target_id['index']
         if new_id == session_id:
             return no_update, no_update, no_update, '', {'display': 'none'}

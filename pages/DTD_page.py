@@ -25,7 +25,6 @@ def display_plugin(session_id):
     dtd_tab = "loss"
     file_loaded = getattr(cache, "DeconomixFile", None) is not None
     dtd_executed = getattr(cache, "DTDmodel", None) is not None
-    print(f"[DEBUG] Session-Wechsel: DTD_PAGE | session_id={session_id} | file_loaded={file_loaded} | dtd_executed={dtd_executed}")
     if file_loaded:
         applCheckEnabled = True
         geneCount = cache.DeconomixFile.X_mat.shape[0] if hasattr(cache.DeconomixFile, "X_mat") and cache.DeconomixFile.X_mat is not None else 0

@@ -71,7 +71,7 @@ while PLUGIN_CONFIGS:
         if all(dep in REGISTERED or dep == modname for dep in dependencies):
             module = importlib.import_module(f"pages.{modname}")
             if hasattr(module, "get_layout") and hasattr(module, "register_callbacks"):
-                position = int(config.get("position", 999))
+                position = int(config.get("position", 999)) 
                 nav_id = config.get("id", f"nav-{modname.lower()}")
                 title = config.get("title", modname.replace("_page", "").capitalize())
                 description = config.get("description", f"{title} plug-in")

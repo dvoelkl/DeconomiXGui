@@ -51,9 +51,6 @@ def display_plugin(session_id):
         layout["adtd-skeleton"].visible = False
         layout["adtd-tab-panel"].value = "mixtures"
     
-    print(f"[DEBUG] Session-Wechsel: ADTD_PAGE | session_id={session_id} | dtd_executed={applCheckEnabled} | adtd_executed={adtd_executed}")
-    print(f"[DEBUG] ADTD Tab aktiv: {adtd_tab}")
-    
     return layout
 
 def nav_disabled(session_id):
@@ -497,27 +494,31 @@ def get_adtd_layout(session_id, applCheckEnabled):
                                         dmc.Checkbox(id="adtd-par-check-Cstatic", label="C static", labelPosition='left',
                                                      mb=10, checked=False),
                                         label=get_HelpTooltipsManager().get_tooltip_content("adtd-par-check-Cstatic"),
-                                        openDelay=get_HelpTooltipsManager().delayTime
+                                        openDelay=get_HelpTooltipsManager().delayTime,
+                                        multiline=True
                                     ),
                                     dmc.Tooltip(
                                         dmc.Checkbox(id="adtd-par-check-Deltastatic", label="Delta static",
                                                      labelPosition='left', mb=10, checked=False),
                                         label=get_HelpTooltipsManager().get_tooltip_content("adtd-par-check-Deltastatic"),
-                                        openDelay=get_HelpTooltipsManager().delayTime
+                                        openDelay=get_HelpTooltipsManager().delayTime,
+                                        multiline=True
                                     ),
                                 ]),
                                 dmc.Tooltip(
                                 dmc.NumberInput(id="adtd-par-lambda1", label="Lambda 1", value=1e-6,
                                                 min=1e-25, allowDecimal=True, allowNegative=False),
                                 label=get_HelpTooltipsManager().get_tooltip_content("adtd-par-lambda1"),
-                                openDelay=get_HelpTooltipsManager().delayTime
+                                openDelay=get_HelpTooltipsManager().delayTime,
+                                multiline=True
                                 ),
                                 dmc.Tooltip(
                                 dmc.NumberInput(id="adtd-par-lambda2",
                                                 label="Lambda 2", value=1e-6, min=1e-25,
                                                 allowDecimal=True, allowNegative=False),
                                 label=get_HelpTooltipsManager().get_tooltip_content("adtd-par-lambda2"),
-                                openDelay=get_HelpTooltipsManager().delayTime
+                                openDelay=get_HelpTooltipsManager().delayTime,
+                                multiline=True
                                 ),
                             ],
                             legend="General parameters",
@@ -550,7 +551,8 @@ def get_adtd_layout(session_id, applCheckEnabled):
                                 dmc.Tooltip(
                                 dmc.Button("Run Lambda2 Search", id="adtd-run-hyper", fullWidth=True, mt=10),
                                 label=get_HelpTooltipsManager().get_tooltip_content("adtd-run-hyper"),
-                                openDelay=get_HelpTooltipsManager().delayTime
+                                openDelay=get_HelpTooltipsManager().delayTime,
+                                multiline=True
                                 ),
                                 dmc.Button("Execute ADTD", id="adtd-run", fullWidth=True, mt=10),
                                 dmc.Button("Show Previous Runs", id="adtd-show-previous-modal-btn", fullWidth=True, mt=10, color="gray"),
