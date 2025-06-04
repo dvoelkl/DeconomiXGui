@@ -280,5 +280,5 @@ server = app.server
 if __name__ == "__main__":
     app.title = "Deconomix"
 
-    app.run(debug=True)
-    #app.run_server(debug=False)
+    #app.run(debug=True)
+    app.run_server(debug=False)
