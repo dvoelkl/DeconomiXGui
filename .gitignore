@@ -11,3 +11,4 @@ utils/__pycache__/ADTD_config.cpython-312.pyc
 utils/__pycache__/DeconomixCache.cpython-312.pyc
 utils/__pycache__/DeconomixFile.cpython-312.pyc
 utils/__pycache__/DTD_config.cpython-312.pyc
+*.pyc
