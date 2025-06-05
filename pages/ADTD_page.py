@@ -101,6 +101,7 @@ def register_callbacks(app):
         Output('adtd-tab-gr', 'disabled', allow_duplicate=True),
         Output('adtd-tab-mix', 'disabled', allow_duplicate=True),
         Output('adtd-par-lambda2', 'value'),
+        Output('adtd-par-lambda2-select', 'disabled', allow_duplicate=True),
         Input('adtd-run-hyper', 'n_clicks'),
         State('adtd-par-lambda_min', 'value'),
         State('adtd-par-lambda_max', 'value'),
@@ -113,6 +114,7 @@ def register_callbacks(app):
                  (Output("adtd-exec-overlay", "visible"), True, False)],
         prevent_initial_call=True
     )
+
     def runADTDHPS(n_clicks, lambda_min, lambda_max, npoints, dataset, gr_disabled, mix_disabled, session_id):
         cache = get_session_cache(session_id)
         cache.ADTD_config.lambda2min = lambda_min
@@ -134,7 +136,7 @@ def register_callbacks(app):
         cache.ADTD_HPS_model.run()
         fig = getHPSPlot(cache)
         optimalLambda2 = cache.ADTD_HPS_model.lambda_max_gradient
-        return dcc.Graph(figure=fig), 'hps', False, True, True, optimalLambda2
+        return dcc.Graph(figure=fig), 'hps', False, True, True, optimalLambda2, False
 
     # Callback for running ADTD
     @app.callback(
@@ -149,6 +151,8 @@ def register_callbacks(app):
         State('adtd-par-check-Deltastatic', 'checked'),
         State('adtd-par-lambda1', 'value'),
         State('adtd-par-lambda2', 'value'),
+        State('adtd-par-lambda2-select', 'value'),
+        State('adtd-par-lambda2-select', 'disabled'),
         State("adtd-dataset-combo", "value"),
         State("adtd-par-iterations", "value"),
         State('adtd-tab-hps', 'disabled'),
@@ -159,8 +163,18 @@ def register_callbacks(app):
                  (Output("adtd-exec-overlay", "visible"), True, False)],
         prevent_initial_call=True
     )
-    def runADTD(n_clicks, Cstatic, Deltastatic, lambda1, lambda2, dataset, nIter, hps_disabled, gr_disabled, mix_disabled, session_id):
+    def runADTD(n_clicks, Cstatic, Deltastatic, lambda1, lambda2, lambda2_select, lambda2_select_disabled, dataset, nIter, hps_disabled, gr_disabled, mix_disabled, session_id):
         cache = get_session_cache(session_id)
+        
+        # Determine which lambda2 to use based on dropdown selection if enabled
+        if not lambda2_select_disabled and hasattr(cache, 'ADTD_HPS_model') and cache.ADTD_HPS_model is not None:
+            if lambda2_select == "min":
+                lambda2 = cache.ADTD_HPS_model.lambda_min
+            elif lambda2_select == "1se":
+                lambda2 = cache.ADTD_HPS_model.lambda_1se
+            elif lambda2_select == "max_gradient":
+                lambda2 = cache.ADTD_HPS_model.lambda_max_gradient
+        
         cached = cache.get_adtd_result(dataset, lambda1, lambda2, nIter, Cstatic, Deltastatic)
         if cached is not None:
             return cached['tab_mixture'], cached['tab_gr'], 'mixtures', hps_disabled, Deltastatic, False
@@ -179,9 +193,9 @@ def register_callbacks(app):
             Y_adtd = cache.DTD_Y_test
         if not hps_disabled \
                 and cache.ADTD_config.Dataset == previousDataset \
-                and cache.ADTD_HPS_model is not None \
-                and lambda2 == cache.ADTD_HPS_model.lambda_max_gradient:
+                and cache.ADTD_HPS_model is not None:
             gamma = 1 / Y_adtd.shape[1] * np.ones(Y_adtd.shape[0]) / (Y_adtd.mean(axis=1))**2
+            print("using scaled gamma")
         else:
             gamma = cache.DTDmodel.gamma
         cache.ADTDmodel = deconomix.methods.ADTD(cache.DeconomixFile.X_mat.loc[Y_adtd.index,:],
@@ -520,6 +534,18 @@ def get_adtd_layout(session_id, applCheckEnabled):
                                 openDelay=get_HelpTooltipsManager().delayTime,
                                 multiline=True
                                 ),
+                                dmc.Select(
+                                    id="adtd-par-lambda2-select",
+                                    label="Lambda 2 Options",
+                                    data=[
+                                        {"value": "min", "label": "Lambda Minimum"},
+                                        {"value": "1se", "label": "Lambda 1 Standard Error"},
+                                        {"value": "max_gradient", "label": "Lambda Max Gradient"}
+                                    ],
+                                    value="max_gradient",
+                                    disabled=not (hasattr(cache, 'ADTD_HPS_model') and cache.ADTD_HPS_model is not None),
+                                    style={"marginTop": 10, "marginBottom": 10}
+                                ),
                             ],
                             legend="General parameters",
                             disabled=False,
@@ -546,7 +572,7 @@ def get_adtd_layout(session_id, applCheckEnabled):
                                            data=combobox_datasets_items,
                                            allowDeselect=False),
                                 dmc.NumberInput(id="adtd-par-iterations",
-                                                label="Max iterations", value=100, min=1,
+                                                label="Max iterations", value=200, min=1,
                                                 allowDecimal=False, allowNegative=False),
                                 dmc.Tooltip(
                                 dmc.Button("Run Lambda2 Search", id="adtd-run-hyper", fullWidth=True, mt=10),
@@ -731,7 +757,12 @@ def get_tab_adtd_geneRegulation(cache, dataset):
 
     geneList = list(cache.DeconomixFile.X_mat.sort_index().index.unique())
 
-    initially_selected = list(cache.ADTDmodel.Delta_est.abs().max(axis=1).sort_values(ascending=False).index.drop_duplicates())[:10]
+    prior_upregulated = ['CXCR4', 'CD3D', 'FTH1', 'PTPRCAP', 'IL32', 'SRGN', 'PTPRC']
+    filtered_selection = [gene for gene in prior_upregulated if gene in geneList]
+    if len(filtered_selection) >= 1:
+        initially_selected = filtered_selection
+    else: 
+        initially_selected = list(cache.ADTDmodel.Delta_est.abs().max(axis=1).sort_values(ascending=False).index.drop_duplicates())[:10]
 
     gr_plot_init = get_gr_plot(cache, initially_selected)
 
@@ -776,7 +807,7 @@ def get_gr_plot(cache, selected_genes):
             y=selected_genes,
             colorscale="PuOr",
             colorbar=dict(),
-            zmid=0.5
+            zmid=1
         )
     )
 
