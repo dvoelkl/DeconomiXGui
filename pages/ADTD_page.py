@@ -534,17 +534,22 @@ def get_adtd_layout(session_id, applCheckEnabled):
                                 openDelay=get_HelpTooltipsManager().delayTime,
                                 multiline=True
                                 ),
-                                dmc.Select(
-                                    id="adtd-par-lambda2-select",
-                                    label="Lambda 2 Options",
-                                    data=[
-                                        {"value": "min", "label": "Lambda Minimum"},
-                                        {"value": "1se", "label": "Lambda 1 Standard Error"},
-                                        {"value": "max_gradient", "label": "Lambda Max Gradient"}
+                                dmc.Tooltip(
+                                    dmc.Select(
+                                        id="adtd-par-lambda2-select",
+                                        label="Lambda 2 Options",
+                                        data=[
+                                            {"value": "min", "label": "Lambda Minimum"},
+                                            {"value": "1se", "label": "Lambda 1 Standard Error"},
+                                            {"value": "max_gradient", "label": "Lambda Max Gradient"}
                                     ],
                                     value="max_gradient",
                                     disabled=not (hasattr(cache, 'ADTD_HPS_model') and cache.ADTD_HPS_model is not None),
                                     style={"marginTop": 10, "marginBottom": 10}
+                                ),
+                                label=get_HelpTooltipsManager().get_tooltip_content("adtd-par-lambda2-select"),
+                                openDelay=get_HelpTooltipsManager().delayTime,
+                                multiline=True
                                 ),
                             ],
                             legend="General parameters",
