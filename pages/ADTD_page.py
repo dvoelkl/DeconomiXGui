@@ -125,8 +125,11 @@ def register_callbacks(app):
             Y_hps = cache.DTD_Y_train
         elif dataset == 'appl':
             Y_hps = cache.DeconomixFile.Application.loc[cache.DTDmodel.gamma.index,:]
+            # make columns integers
+            Y_hps.columns = Y_hps.columns.astype(int)
         else:
             Y_hps = cache.DTD_Y_test
+
         cache.ADTD_HPS_model = deconomix.methods.HPS(cache.DeconomixFile.X_mat.loc[Y_hps.index,:],
                                                      Y_hps,
                                                      cache.DTDmodel.gamma,
@@ -801,7 +804,7 @@ def get_gr_plot(cache, selected_genes):
     delta = cache.ADTDmodel.Delta_est
 
     norm = CenteredNorm(1)
-    normalized_delta = pd.DataFrame(norm(delta),
+    normalized_delta = pd.DataFrame(delta,
                                     index=delta.index,
                                     columns=delta.columns).loc[selected_genes, :]
 

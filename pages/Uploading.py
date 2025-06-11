@@ -62,7 +62,7 @@ def get_layout(session_id=None):
                     'borderStyle': 'dashed',
                     'borderRadius': '5px',
                     'textAlign': 'center',
-                    'margin': '10px'
+                    'margin': '10px auto'
                 },
                 multiple=False
             ),
@@ -87,7 +87,7 @@ def get_layout(session_id=None):
                                 style={
                                     'width': '100%', 'height': '60px', 'lineHeight': '60px',
                                     'borderWidth': '1px', 'borderStyle': 'dashed', 'borderRadius': '5px',
-                                    'textAlign': 'center', 'margin': '10px'
+                                    'textAlign': 'center', 'margin': 'auto'
                                 },
                                 multiple=False
                             ),]),
@@ -102,7 +102,7 @@ def get_layout(session_id=None):
                                 style={
                                     'width': '100%', 'height': '60px', 'lineHeight': '60px',
                                     'borderWidth': '1px', 'borderStyle': 'dashed', 'borderRadius': '5px',
-                                    'textAlign': 'center', 'margin': '10px'
+                                    'textAlign': 'center', 'margin': 'auto'
                                 },
                             ),]),
                         dmc.Stack(children=[
@@ -116,7 +116,7 @@ def get_layout(session_id=None):
                                 style={
                                     'width': '100%', 'height': '60px', 'lineHeight': '60px',
                                     'borderWidth': '1px', 'borderStyle': 'dashed', 'borderRadius': '5px',
-                                    'textAlign': 'center', 'margin': '10px'
+                                    'textAlign': 'center', 'margin': 'auto'
                                 },
                             ),]),
                         dmc.Stack(children=[
@@ -130,7 +130,7 @@ def get_layout(session_id=None):
                                 style={
                                     'width': '100%', 'height': '60px', 'lineHeight': '60px',
                                     'borderWidth': '1px', 'borderStyle': 'dashed', 'borderRadius': '5px',
-                                    'textAlign': 'center', 'margin': '10px'
+                                    'textAlign': 'center', 'margin': 'auto'
                                 },
                             ),
                         ]),
@@ -176,7 +176,7 @@ def get_layout(session_id=None):
                                 style={
                                     'width': '100%', 'height': '60px', 'lineHeight': '60px',
                                     'borderWidth': '1px', 'borderStyle': 'dashed', 'borderRadius': '5px',
-                                    'textAlign': 'center', 'margin': '10px'
+                                    'textAlign': 'center', 'margin': 'auto'
                                 },
                                 multiple=False
                             ),
@@ -190,7 +190,7 @@ def get_layout(session_id=None):
                                 style={
                                     'width': '100%', 'height': '60px', 'lineHeight': '60px',
                                     'borderWidth': '1px', 'borderStyle': 'dashed', 'borderRadius': '5px',
-                                    'textAlign': 'center', 'margin': '10px'
+                                    'textAlign': 'center', 'margin': 'auto'
                                 },
                                 multiple=False
                             ),
@@ -204,7 +204,7 @@ def get_layout(session_id=None):
                                 style={
                                     'width': '100%', 'height': '60px', 'lineHeight': '60px',
                                     'borderWidth': '1px', 'borderStyle': 'dashed', 'borderRadius': '5px',
-                                    'textAlign': 'center', 'margin': '10px'
+                                    'textAlign': 'center', 'margin': 'auto'
                                 },
                                 multiple=False
                             ),
@@ -219,7 +219,7 @@ def get_layout(session_id=None):
                                 style={
                                     'width': '100%', 'height': '60px', 'lineHeight': '60px',
                                     'borderWidth': '1px', 'borderStyle': 'dashed', 'borderRadius': '5px',
-                                    'textAlign': 'center', 'margin': '10px'
+                                    'textAlign': 'center', 'margin': 'a'
                                 },
                                 multiple=False
                             ),
