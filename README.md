@@ -13,7 +13,7 @@ DeconomiX GUI is a modular, extensible, and user-friendly web application for de
 ## Getting Started
 
 ### Prerequisites
-- Python 3.9+
+- Python 3.13.2 (this version was used for developement)
 - Recommended: Create a virtual environment
 
 
