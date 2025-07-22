@@ -1,6 +1,8 @@
 # DeconomiX GUI
 
 DeconomiX GUI is a modular, extensible, and user-friendly web application for deconvolution analysis of omics data. It is designed for both researchers and non-expert users, supporting plug-in-based workflows, robust dependency management, and future extensibility.
+<br>
+Visit our website: https://deconomix.bioinf.med.uni-goettingen.de
 
 ## Features
 
